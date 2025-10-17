@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"strings"
-	"time"
+
+	"cortex/scanner"
 )
 
 func main() {
@@ -43,35 +43,22 @@ func main() {
 		return
 	}
 
-	// 5. Calculate the total number of goroutines
+	jobs := make(chan scanner.ScanJob, 1000)
 	totalRoutines := len(hosts) * (endPort - startPort + 1)
-
 	results := make(chan string)
 
-	// 6. Outer loop over hosts
+	for w := 0; w < 100; w++ {
+		go scanner.Worker(jobs, results)
+	}
+
 	for _, host := range hosts {
-		// Inner loop over ports within the range
 		for port := startPort; port <= endPort; port++ {
-			go scanPort(port, host, results)
+			jobs <- scanner.ScanJob{Host: host, Port: port}
 		}
 	}
+	close(jobs)
 
-	// 7. Collect results from all goroutines
 	for i := 0; i < totalRoutines; i++ {
 		fmt.Println(<-results)
-	}
-
-}
-
-func scanPort(port int, host string, results chan string) {
-	result, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 2*time.Second)
-
-	if err != nil {
-		message := fmt.Sprintf("%s: The port %d isn't available", host, port)
-		results <- message
-	} else {
-		message := fmt.Sprintf("%s: The port %d is available", host, port)
-		results <- message
-		_ = result.Close()
 	}
 }
