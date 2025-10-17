@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -63,7 +64,7 @@ func main() {
 }
 
 func scanPort(port int, host string, results chan string) {
-	result, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
+	result, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 2*time.Second)
 
 	if err != nil {
 		message := fmt.Sprintf("%s: The port %d isn't available", host, port)
