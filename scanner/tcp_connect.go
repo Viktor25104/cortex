@@ -8,9 +8,56 @@ import (
 	"time"
 )
 
+// probeService - the final intelligent banner collector.
+// Sends probe data and matches response against probe patterns.
+func probeService(conn net.Conn, host string, port int, cache *ProbeCache) string {
+	if cache == nil || len(cache.GetTCPProbes()) == 0 {
+		// If no cache, fallback to old simple method.
+		return grabBanner(conn, host, port)
+	}
+
+	// Get all TCP probes from cache
+	tcpProbes := cache.GetTCPProbes()
+
+	// Try each probe in sequence
+	for _, probe := range tcpProbes {
+		// If probe has data to send, send it.
+		if len(probe.Data) > 0 {
+			_, err := conn.Write(probe.Data)
+			if err != nil {
+				continue // If failed to send, try next probe
+			}
+		}
+
+		// Set read deadline for this specific probe
+		_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+		// Read response from server
+		buffer := make([]byte, 4096)
+		n, err := conn.Read(buffer)
+		if err != nil || n == 0 {
+			continue // If failed to read or empty response, try next probe
+		}
+
+		response := buffer[:n]
+
+		// Match response ONLY against patterns of this specific probe
+		for _, match := range probe.Matches {
+			if match.Pattern.Match(response) {
+				// Found a match!
+				// Return service name. (Later can add version info)
+				return match.ServiceName
+			}
+		}
+	}
+
+	// If no probe matched, return empty string.
+	return ""
+}
+
 // TCPConnectWorker processes scan jobs using TCP Connect Scan.
 // Establishes full connection and retrieves service banner if available.
-func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult) {
+func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache) {
 	for job := range jobs {
 		address := job.Host + ":" + strconv.Itoa(job.Port)
 		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
@@ -19,8 +66,8 @@ func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult) {
 		if err != nil {
 			result = ScanResult{Host: job.Host, Port: job.Port, State: "Closed"}
 		} else {
-			banner := grabBanner(conn, job.Host, job.Port)
-			result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: banner}
+			service := probeService(conn, job.Host, job.Port, cache)
+			result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: service}
 			_ = conn.Close()
 		}
 		results <- result

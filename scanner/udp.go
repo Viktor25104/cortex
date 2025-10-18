@@ -10,7 +10,7 @@ import (
 
 // UDPWorker processes scan jobs using UDP Scan.
 // Sends UDP packets and detects responses or ICMP errors.
-func UDPWorker(jobs <-chan ScanJob, results chan<- ScanResult) {
+func UDPWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache) {
 	for job := range jobs {
 		state := performUdpScan(job.Host, job.Port)
 		result := ScanResult{Host: job.Host, Port: job.Port, State: state}

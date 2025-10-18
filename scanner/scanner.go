@@ -27,11 +27,11 @@ const (
 
 // WorkerFunc is the function signature for scan workers.
 // Each worker processes jobs and sends results.
-type WorkerFunc func(jobs <-chan ScanJob, results chan<- ScanResult)
+type WorkerFunc func(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache)
 
 // ExecuteScan orchestrates the scanning process based on the specified mode.
 // It validates prerequisites, routes to the correct worker, and collects results.
-func ExecuteScan(hosts []string, startPort int, endPort int, mode ScanMode) ([]ScanResult, error) {
+func ExecuteScan(hosts []string, startPort, endPort int, mode ScanMode, cache *ProbeCache) ([]ScanResult, error) {
 	var worker WorkerFunc
 	var workerCount int
 
@@ -55,19 +55,19 @@ func ExecuteScan(hosts []string, startPort int, endPort int, mode ScanMode) ([]S
 		return nil, fmt.Errorf("unknown scan mode")
 	}
 
-	return executeScan(hosts, startPort, endPort, worker, workerCount), nil
+	return executeScan(hosts, startPort, endPort, worker, workerCount, cache), nil
 }
 
 // executeScan is the universal scanning orchestrator.
 // It takes any worker function and runs concurrent scans.
-func executeScan(hosts []string, startPort int, endPort int, worker WorkerFunc, workerCount int) []ScanResult {
+func executeScan(hosts []string, startPort int, endPort int, worker WorkerFunc, workerCount int, cache *ProbeCache) []ScanResult {
 	jobs := make(chan ScanJob, 1000)
 	totalRoutines := len(hosts) * (endPort - startPort + 1)
-	results := make(chan ScanResult)
+	results := make(chan ScanResult, totalRoutines)
 
 	// Start worker goroutines.
 	for w := 0; w < workerCount; w++ {
-		go worker(jobs, results)
+		go worker(jobs, results, cache)
 	}
 
 	// Distribute scan jobs.

@@ -14,7 +14,7 @@ import (
 // TCPSynWorker processes scan jobs using SYN Scan (stealth mode).
 // Sends SYN packet and detects response without completing handshake.
 // Requires root/administrator privileges on Unix-like systems.
-func TCPSynWorker(jobs <-chan ScanJob, results chan<- ScanResult) {
+func TCPSynWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache) {
 	for job := range jobs {
 		state := performSynScan(job.Host, job.Port)
 		result := ScanResult{Host: job.Host, Port: job.Port, State: state}

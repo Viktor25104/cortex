@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -20,6 +21,18 @@ func Run() {
 	udpScan := flag.Bool("sU", false, "Use UDP scan (requires root/admin)")
 	flag.BoolVar(udpScan, "udp-scan", false, "Use UDP scan (requires root/admin)")
 	flag.Parse()
+
+	// Load probes for service detection
+	var probeCache *scanner.ProbeCache
+	probes, err := scanner.LoadProbes("nmap-service-probes")
+	if err != nil {
+		log.Printf("Warning: Could not load service probes: %v\n", err)
+		log.Println("Continuing with basic port scanning without service detection")
+		probeCache = scanner.NewProbeCache([]scanner.Probe{})
+	} else {
+		probeCache = scanner.NewProbeCache(probes)
+		fmt.Printf("Loaded %d service detection probes\n", len(probes))
+	}
 
 	args := flag.Args()
 	if len(args) < 2 {
@@ -58,8 +71,8 @@ func Run() {
 		return
 	}
 
-	// Execute the scan
-	scanResults, err := scanner.ExecuteScan(hosts, startPort, endPort, selectedMode)
+	// Execute the scan with probe cache
+	scanResults, err := scanner.ExecuteScan(hosts, startPort, endPort, selectedMode, probeCache)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		if selectedMode == scanner.ModeSYN {
@@ -74,7 +87,7 @@ func Run() {
 	if *jsonOutput {
 		outputJSON(scanResults)
 	} else {
-		outputPlainText(scanResults, selectedMode != scanner.ModeConnect)
+		outputPlainText(scanResults)
 	}
 }
 
@@ -117,24 +130,15 @@ func outputJSON(results []scanner.ScanResult) {
 }
 
 // outputPlainText prints results in human-readable format.
-// Displays banner information for open ports and status for all ports.
-// Adapts output based on scan mode (Connect vs SYN/UDP).
-func outputPlainText(results []scanner.ScanResult, isStealth bool) {
+// Displays service information for open ports.
+func outputPlainText(results []scanner.ScanResult) {
 	for _, result := range results {
-		if result.State == "Open" && result.Service != "" && !isStealth {
-			bannerLine := extractFirstLine(result.Service)
-			if len(bannerLine) > 100 {
-				bannerLine = bannerLine[:100] + "..."
+		if result.State == "Open" {
+			if result.Service != "" {
+				fmt.Printf("%s:%d - %s - %s\n", result.Host, result.Port, result.State, result.Service)
+			} else {
+				fmt.Printf("%s:%d - %s\n", result.Host, result.Port, result.State)
 			}
-			fmt.Printf("%s:%d - %s - %s\n", result.Host, result.Port, result.State, bannerLine)
-		} else {
-			fmt.Printf("%s:%d - %s\n", result.Host, result.Port, result.State)
 		}
 	}
-}
-
-// extractFirstLine returns the first line of a multi-line string.
-func extractFirstLine(s string) string {
-	lines := strings.Split(s, "\n")
-	return lines[0]
 }
