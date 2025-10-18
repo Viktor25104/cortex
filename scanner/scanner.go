@@ -3,15 +3,17 @@ package scanner
 import (
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
+// ScanJob represents a single port scanning task.
 type ScanJob struct {
 	Host string
 	Port int
 }
 
-// ScanResult represents a single port scan result
+// ScanResult represents the outcome of a port scan attempt.
 type ScanResult struct {
 	Host    string `json:"host"`
 	Port    int    `json:"port"`
@@ -19,15 +21,36 @@ type ScanResult struct {
 	Service string `json:"service,omitempty"`
 }
 
-func grabBanner(conn net.Conn) string {
+// grabBanner retrieves service banner based on port protocol.
+// Implements protocol-specific communication strategies:
+// - HTTP ports: send GET request and read response
+// - SSH/FTP/SMTP: read auto-generated banner
+// - Others: return empty string
+func grabBanner(conn net.Conn, port int) string {
 	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
+	var banner string
+
+	switch port {
+	case 80, 443, 8080, 8443, 3000, 5000:
+		banner = fetchHTTPBanner(conn)
+	case 21, 22, 25, 110, 143:
+		banner = readAutoBanner(conn)
+	default:
+		return ""
+	}
+
+	return cleanBanner(banner)
+}
+
+// fetchHTTPBanner sends HTTP GET request and reads the response.
+func fetchHTTPBanner(conn net.Conn) string {
 	_, err := conn.Write([]byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"))
 	if err != nil {
 		return ""
 	}
 
-	buffer := make([]byte, 256)
+	buffer := make([]byte, 512)
 	n, err := conn.Read(buffer)
 	if err != nil {
 		return ""
@@ -36,7 +59,27 @@ func grabBanner(conn net.Conn) string {
 	return string(buffer[:n])
 }
 
-// Worker processes scan jobs from the jobs channel and sends results through the results channel
+// readAutoBanner reads banner sent by service upon connection.
+// Used for SSH, FTP, SMTP, POP3, IMAP protocols.
+func readAutoBanner(conn net.Conn) string {
+	buffer := make([]byte, 512)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return ""
+	}
+
+	return string(buffer[:n])
+}
+
+// cleanBanner normalizes banner format by replacing line endings.
+func cleanBanner(banner string) string {
+	cleaned := strings.ReplaceAll(banner, "\r\n", "\n")
+	cleaned = strings.ReplaceAll(cleaned, "\r", "\n")
+	return cleaned
+}
+
+// Worker processes scan jobs from channel and sends results.
+// Attempts TCP connection with timeout and retrieves service banner if available.
 func Worker(jobs <-chan ScanJob, results chan<- ScanResult) {
 	for job := range jobs {
 		address := job.Host + ":" + strconv.Itoa(job.Port)
@@ -47,7 +90,7 @@ func Worker(jobs <-chan ScanJob, results chan<- ScanResult) {
 			result = ScanResult{Host: job.Host, Port: job.Port, State: "Closed"}
 		} else {
 			defer conn.Close()
-			banner := grabBanner(conn)
+			banner := grabBanner(conn, job.Port)
 			result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: banner}
 		}
 		results <- result
