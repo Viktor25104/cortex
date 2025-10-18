@@ -1,23 +1,26 @@
 package main
 
 import (
+	"cortex/scanner"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
-
-	"cortex/scanner"
 )
 
 func main() {
 	jsonOutput := flag.Bool("json", false, "Output results in JSON format")
+	synScan := flag.Bool("sS", false, "Use SYN scan (requires root/admin)")
+	flag.BoolVar(synScan, "syn-scan", *synScan, "Use SYN scan (requires root/admin)")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 2 {
-		fmt.Println("Usage: cortex [--json] host1 host2... startPort-endPort")
+		fmt.Println("Usage: cortex [--json] [-sS|--syn-scan] host1 host2... startPort-endPort")
 		fmt.Println("Example: cortex --json 127.0.0.1 scanme.nmap.org 22-80")
+		fmt.Println("Example: cortex -sS 127.0.0.1 22-80")
 		return
 	}
 
@@ -30,12 +33,24 @@ func main() {
 		return
 	}
 
-	scanResults := executeScanning(hosts, startPort, endPort)
+	var scanResults []scanner.ScanResult
+
+	if *synScan {
+		// Validate SYN scan prerequisites.
+		if err := scanner.InitSynScan(); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			fmt.Println("SYN scan requires elevated privileges. Try: sudo cortex -sS ...")
+			os.Exit(1)
+		}
+		scanResults = executeSynScanning(hosts, startPort, endPort)
+	} else {
+		scanResults = executeConnectScanning(hosts, startPort, endPort)
+	}
 
 	if *jsonOutput {
 		outputJSON(scanResults)
 	} else {
-		outputPlainText(scanResults)
+		outputPlainText(scanResults, *synScan)
 	}
 }
 
@@ -59,8 +74,9 @@ func parsePortRange(portRange string) (int, int, error) {
 	return startPort, endPort, nil
 }
 
-// executeScanning distributes scan jobs to workers and collects results.
-func executeScanning(hosts []string, startPort int, endPort int) []scanner.ScanResult {
+// executeConnectScanning performs TCP Connect Scan.
+// Establishes full connection to each port and retrieves banners.
+func executeConnectScanning(hosts []string, startPort int, endPort int) []scanner.ScanResult {
 	jobs := make(chan scanner.ScanJob, 1000)
 	totalRoutines := len(hosts) * (endPort - startPort + 1)
 	results := make(chan scanner.ScanResult)
@@ -68,6 +84,38 @@ func executeScanning(hosts []string, startPort int, endPort int) []scanner.ScanR
 	// Start worker goroutines.
 	for w := 0; w < 100; w++ {
 		go scanner.Worker(jobs, results)
+	}
+
+	// Distribute scan jobs.
+	for _, host := range hosts {
+		for port := startPort; port <= endPort; port++ {
+			jobs <- scanner.ScanJob{Host: host, Port: port}
+		}
+	}
+	close(jobs)
+
+	// Collect results.
+	var scanResults []scanner.ScanResult
+	for i := 0; i < totalRoutines; i++ {
+		result := <-results
+		scanResults = append(scanResults, result)
+	}
+
+	return scanResults
+}
+
+// executeSynScanning performs SYN Scan (stealth mode).
+// Sends SYN packets without completing TCP handshake.
+// No banner grabbing in SYN mode - only port state detection.
+func executeSynScanning(hosts []string, startPort int, endPort int) []scanner.ScanResult {
+	jobs := make(chan scanner.ScanJob, 1000)
+	totalRoutines := len(hosts) * (endPort - startPort + 1)
+	results := make(chan scanner.ScanResult)
+
+	// Start SYN worker goroutines.
+	workerCount := 50 // Fewer workers for SYN scan to avoid overwhelming network.
+	for w := 0; w < workerCount; w++ {
+		go scanner.SynWorker(jobs, results)
 	}
 
 	// Distribute scan jobs.
@@ -100,9 +148,10 @@ func outputJSON(results []scanner.ScanResult) {
 
 // outputPlainText prints results in human-readable format.
 // Displays banner information for open ports and status for all ports.
-func outputPlainText(results []scanner.ScanResult) {
+// Adapts output based on scan mode (Connect vs SYN).
+func outputPlainText(results []scanner.ScanResult, isSynScan bool) {
 	for _, result := range results {
-		if result.State == "Open" && result.Service != "" {
+		if result.State == "Open" && result.Service != "" && !isSynScan {
 			bannerLine := extractFirstLine(result.Service)
 			if len(bannerLine) > 100 {
 				bannerLine = bannerLine[:100] + "..."
