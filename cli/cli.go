@@ -16,9 +16,9 @@ import (
 func Run() {
 	jsonOutput := flag.Bool("json", false, "Output results in JSON format")
 	synScan := flag.Bool("sS", false, "Use SYN scan (requires root/admin)")
-	flag.BoolVar(synScan, "syn-scan", *synScan, "Use SYN scan (requires root/admin)")
+	flag.BoolVar(synScan, "syn-scan", false, "Use SYN scan (requires root/admin)")
 	udpScan := flag.Bool("sU", false, "Use UDP scan (requires root/admin)")
-	flag.BoolVar(udpScan, "udp-scan", *udpScan, "Use UDP scan (requires root/admin)")
+	flag.BoolVar(udpScan, "udp-scan", false, "Use UDP scan (requires root/admin)")
 	flag.Parse()
 
 	args := flag.Args()
