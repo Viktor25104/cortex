@@ -82,9 +82,17 @@ func main() {
 		}
 		fmt.Println(string(jsonData))
 	} else {
-		// Output as plain text
+		// Output as plain text with banner info
 		for _, result := range scanResults {
-			fmt.Printf("%s:%d - %s\n", result.Host, result.Port, result.State)
+			if result.State == "Open" && result.Service != "" {
+				bannerLine := strings.Split(result.Service, "\n")[0]
+				if len(bannerLine) > 80 {
+					bannerLine = bannerLine[:80] + "..."
+				}
+				fmt.Printf("%s:%d - %s - %s\n", result.Host, result.Port, result.State, bannerLine)
+			} else {
+				fmt.Printf("%s:%d - %s\n", result.Host, result.Port, result.State)
+			}
 		}
 	}
 }
