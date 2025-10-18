@@ -35,7 +35,7 @@ func performUdpScan(host string, port int) string {
 		// Any other error (like connection refused) indicates closed port.
 		return "Closed"
 	}
-	_ = conn.Close()
+	defer conn.Close()
 
 	// 2. Set read deadline for receiving responses.
 	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
