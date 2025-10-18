@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult) {
 		if err != nil {
 			result = ScanResult{Host: job.Host, Port: job.Port, State: "Closed"}
 		} else {
-			banner := grabBanner(conn, job.Port)
+			banner := grabBanner(conn, job.Host, job.Port)
 			result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: banner}
 			_ = conn.Close()
 		}
@@ -31,14 +32,14 @@ func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult) {
 // - HTTP ports: send GET request and read response
 // - SSH/FTP/SMTP: read auto-generated banner
 // - Others: return empty string
-func grabBanner(conn net.Conn, port int) string {
+func grabBanner(conn net.Conn, host string, port int) string {
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
 	var banner string
 
 	switch port {
 	case 80, 443, 8080, 8443, 3000, 5000:
-		banner = fetchHTTPBanner(conn)
+		banner = fetchHTTPBanner(conn, host)
 	case 21, 22, 25, 110, 143:
 		banner = readAutoBanner(conn)
 	default:
@@ -49,8 +50,10 @@ func grabBanner(conn net.Conn, port int) string {
 }
 
 // fetchHTTPBanner sends HTTP GET request and reads the response.
-func fetchHTTPBanner(conn net.Conn) string {
-	_, err := conn.Write([]byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"))
+func fetchHTTPBanner(conn net.Conn, host string) string {
+	request := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", host)
+	_, err := conn.Write([]byte(request))
+
 	if err != nil {
 		return ""
 	}

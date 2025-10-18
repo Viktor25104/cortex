@@ -101,7 +101,7 @@ func performSynScan(host string, port int) string {
 		SrcPort: layers.TCPPort(srcPort),
 		DstPort: layers.TCPPort(dstPort),
 		SYN:     true,
-		Seq:     1105024978,
+		Seq:     rand.Uint32(),
 	}
 
 	// 7. Calculate TCP checksum with IP layer context.
