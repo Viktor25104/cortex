@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -17,9 +17,35 @@ func Run() {
 	jsonOutput := flag.Bool("json", false, "Output results in JSON format")
 	synScan := flag.Bool("sS", false, "Use SYN scan (requires root/admin)")
 	flag.BoolVar(synScan, "syn-scan", false, "Use SYN scan (requires root/admin)")
-	udpScan := flag.Bool("sU", false, "Use UDP scan (requires root/admin)")
-	flag.BoolVar(udpScan, "udp-scan", false, "Use UDP scan (requires root/admin)")
+	udpScan := flag.Bool("sU", false, "Use UDP scan")
+	flag.BoolVar(udpScan, "udp-scan", false, "Use UDP scan")
 	flag.Parse()
+
+	// Load probes for service detection
+	var probeCache *scanner.ProbeCache
+	probes, stats, err := scanner.LoadProbes("nmap-service-probes")
+	if err != nil {
+		log.Fatalf("Critical error loading probes file: %v", err)
+	}
+
+	// Display parsing errors if any occurred during probe file parsing
+	if len(stats.ErrorLines) > 0 {
+		fmt.Println("--- Warnings during probe file parsing ---")
+		for _, e := range stats.ErrorLines {
+			fmt.Printf("Line %d: %s\n", e.LineNumber, e.Message)
+		}
+		fmt.Println("----------------------------------------")
+	}
+
+	// Display final probe loading statistics
+	fmt.Println("--- Probe Loading Summary ---")
+	fmt.Printf("Total lines processed: %d\n", stats.TotalLines)
+	fmt.Printf("Successfully loaded probes: %d\n", stats.ProbeCount)
+	fmt.Printf("Successfully loaded match rules: %d\n", stats.MatchCount)
+	fmt.Printf("Lines with parsing errors: %d\n", len(stats.ErrorLines))
+	fmt.Println("---------------------------")
+
+	probeCache = scanner.NewProbeCache(probes)
 
 	args := flag.Args()
 	if len(args) < 2 {
@@ -27,26 +53,31 @@ func Run() {
 		return
 	}
 
-	// Validate that only one scan mode is selected
-	scanModeCount := 0
-	var selectedMode scanner.ScanMode
-	if *synScan {
-		scanModeCount++
-		selectedMode = scanner.ModeSYN
-	}
-	if *udpScan {
-		scanModeCount++
-		selectedMode = scanner.ModeUDP
-	}
-
-	if scanModeCount > 1 {
+	// Determine scan worker based on flags
+	if *synScan && *udpScan {
 		fmt.Println("Error: Cannot use multiple scan modes simultaneously. Choose one: Connect, SYN (-sS), or UDP (-sU)")
 		return
 	}
 
-	// Default to Connect scan if no mode specified
-	if scanModeCount == 0 {
-		selectedMode = scanner.ModeConnect
+	var workerFunc scanner.WorkerFunc
+	var workerCount int
+
+	if *synScan {
+		if err := scanner.InitSynScan(); err != nil {
+			log.Fatalf("SYN scan initialization failed: %v\nTry running with sudo.", err)
+		}
+		workerFunc = scanner.TCPSynWorker
+		workerCount = 50
+	} else if *udpScan {
+		if err := scanner.InitUdpScan(); err != nil {
+			log.Fatalf("UDP scan initialization failed: %v\nTry running with sudo.", err)
+		}
+		workerFunc = scanner.UDPWorker
+		workerCount = 50
+	} else {
+		// Default: TCP Connect scan
+		workerFunc = scanner.TCPConnectWorker
+		workerCount = 100
 	}
 
 	portRange := args[len(args)-1]
@@ -58,23 +89,14 @@ func Run() {
 		return
 	}
 
-	// Execute the scan
-	scanResults, err := scanner.ExecuteScan(hosts, startPort, endPort, selectedMode)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		if selectedMode == scanner.ModeSYN {
-			fmt.Println("SYN scan requires elevated privileges. Try: sudo cortex -sS ...")
-		} else if selectedMode == scanner.ModeUDP {
-			fmt.Println("UDP scan requires elevated privileges. Try: sudo cortex -sU ...")
-		}
-		os.Exit(1)
-	}
+	// Execute the scan with probe cache
+	scanResults := scanner.ExecuteScan(hosts, startPort, endPort, workerFunc, workerCount, probeCache)
 
 	// Output results
 	if *jsonOutput {
 		outputJSON(scanResults)
 	} else {
-		outputPlainText(scanResults, selectedMode != scanner.ModeConnect)
+		outputPlainText(scanResults)
 	}
 }
 
@@ -117,24 +139,29 @@ func outputJSON(results []scanner.ScanResult) {
 }
 
 // outputPlainText prints results in human-readable format.
-// Displays banner information for open ports and status for all ports.
-// Adapts output based on scan mode (Connect vs SYN/UDP).
-func outputPlainText(results []scanner.ScanResult, isStealth bool) {
+// Displays service information for open ports when available.
+func outputPlainText(results []scanner.ScanResult) {
 	for _, result := range results {
-		if result.State == "Open" && result.Service != "" && !isStealth {
+		// Print results for all port states: Open, Closed, Filtered
+		if result.Service != "" {
+			// If service information is available, display it
 			bannerLine := extractFirstLine(result.Service)
 			if len(bannerLine) > 100 {
 				bannerLine = bannerLine[:100] + "..."
 			}
 			fmt.Printf("%s:%d - %s - %s\n", result.Host, result.Port, result.State, bannerLine)
 		} else {
+			// Otherwise, show only the port state
 			fmt.Printf("%s:%d - %s\n", result.Host, result.Port, result.State)
 		}
 	}
 }
 
-// extractFirstLine returns the first line of a multi-line string.
+// extractFirstLine extracts the first line from a multi-line string.
 func extractFirstLine(s string) string {
 	lines := strings.Split(s, "\n")
-	return lines[0]
+	if len(lines) > 0 {
+		return strings.TrimSpace(lines[0])
+	}
+	return s
 }
