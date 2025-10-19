@@ -182,14 +182,30 @@ func parseProbeData(dataStr string) ([]byte, error) {
 		return nil, fmt.Errorf("probe data must be in format q|...|")
 	}
 
-	// Find the closing | delimiter
-	closingPipeIndex := strings.LastIndex(dataStr[2:], "|")
+	// Find the closing | delimiter, skipping escaped pipes (\|)
+	// We scan character by character to properly handle escape sequences
+	closingPipeIndex := -1
+	escaped := false
+	for i := 2; i < len(dataStr); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if dataStr[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if dataStr[i] == '|' {
+			closingPipeIndex = i
+			break
+		}
+	}
+
 	if closingPipeIndex == -1 {
 		return nil, fmt.Errorf("probe data must be in format q|...|")
 	}
-	closingPipeIndex += 2 // Adjust for the offset
 
-	// Extract content between q| and the first closing |
+	// Extract content between q| and the first unescaped closing |
 	// Ignore anything after the closing pipe (e.g., "no-payload", "source=500")
 	content := dataStr[2:closingPipeIndex]
 

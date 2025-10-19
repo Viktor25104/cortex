@@ -90,15 +90,17 @@ func performSynScan(host string, port int) string {
 	}
 	defer handle.Close()
 
-	// Configure Berkeley Packet Filter to capture only TCP responses from target
-	filter := fmt.Sprintf("tcp and src host %s and src port %d and dst host %s", dstIP.String(), port, srcIP.String())
-	if err := handle.SetBPFFilter(filter); err != nil {
-		return "Filtered" // Local error - cannot set BPF filter
-	}
-
 	// Construct TCP SYN packet with randomized source port
 	srcPort := uint16(rand.Intn(65535-1024) + 1024) // Use ephemeral port range
 	dstPort := uint16(port)
+
+	// Update BPF filter to include destination port for precise packet capture
+	// This prevents false positives from unrelated traffic
+	filter := fmt.Sprintf("tcp and src host %s and src port %d and dst host %s and dst port %d",
+		dstIP.String(), port, srcIP.String(), srcPort)
+	if err := handle.SetBPFFilter(filter); err != nil {
+		return "Filtered" // Local error - cannot set BPF filter
+	}
 
 	ipLayer := &layers.IPv4{
 		SrcIP:    srcIP,
