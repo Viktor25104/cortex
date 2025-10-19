@@ -1,134 +1,140 @@
 package scanner
 
 import (
-	"fmt"
+	"errors"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 )
 
-// probeService - the final intelligent banner collector.
-// Sends probe data and matches response against probe patterns.
-func probeService(conn net.Conn, host string, port int, cache *ProbeCache) string {
-	if cache == nil || len(cache.GetTCPProbes()) == 0 {
-		// If no cache, fallback to old simple method.
-		return grabBanner(conn, host, port)
-	}
-
-	// Get all TCP probes from cache
+// probeService performs intelligent service detection using probe-based fingerprinting.
+// For each probe, it establishes a fresh connection to ensure clean state and accurate results.
+// This "one probe - one connection" approach mirrors nmap's methodology and prevents
+// issues with buffered data or connection state corruption.
+// Returns service name and raw response banner.
+func probeService(host string, port int, cache *ProbeCache) (string, string) {
+	// Retrieve all TCP probes from cache
 	tcpProbes := cache.GetTCPProbes()
+	address := host + ":" + strconv.Itoa(port)
 
-	// Try each probe in sequence
+	// Try each probe with a fresh connection
 	for _, probe := range tcpProbes {
-		// If probe has data to send, send it.
+		// Establish new connection for this probe
+		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
+		if err != nil {
+			continue // Skip to next probe if connection fails
+		}
+
+		// Send probe payload if available
 		if len(probe.Data) > 0 {
 			_, err := conn.Write(probe.Data)
 			if err != nil {
-				continue // If failed to send, try next probe
+				_ = conn.Close()
+				continue // Skip to next probe on send failure
 			}
 		}
 
-		// Set read deadline for this specific probe
+		// Set read timeout for response collection
 		_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
-		// Read response from server
+		// Collect server response
 		buffer := make([]byte, 4096)
 		n, err := conn.Read(buffer)
+		_ = conn.Close() // Always close connection after probe
+
 		if err != nil || n == 0 {
-			continue // If failed to read or empty response, try next probe
+			continue // Skip to next probe on read failure or empty response
 		}
 
 		response := buffer[:n]
 
-		// Match response ONLY against patterns of this specific probe
+		// Match response against this probe's service patterns
 		for _, match := range probe.Matches {
 			if match.Pattern.Match(response) {
-				// Found a match!
-				// Return service name. (Later can add version info)
-				return match.ServiceName
+				// Service identified successfully
+				return match.ServiceName, string(response)
 			}
 		}
 	}
 
-	// If no probe matched, return empty string.
-	return ""
+	// No service identified
+	return "", ""
 }
 
-// TCPConnectWorker processes scan jobs using TCP Connect Scan.
-// Establishes full connection and retrieves service banner if available.
-func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache) {
+// TCPConnectWorker processes scan jobs using TCP Connect scan method.
+// Establishes full TCP three-way handshake to verify port accessibility,
+// then performs service detection using probe-based fingerprinting.
+// Implements multi-level port state detection similar to nmap:
+// - Closed: Connection actively refused (RST received)
+// - Filtered: Timeout or no response (firewall blocking or accepting without backend)
+// - Open: Connection accepted AND service responds
+func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache, wg *sync.WaitGroup) {
 	for job := range jobs {
 		address := job.Host + ":" + strconv.Itoa(job.Port)
+
+		// Attempt TCP connection to determine basic accessibility
 		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
 
 		var result ScanResult
+
 		if err != nil {
-			result = ScanResult{Host: job.Host, Port: job.Port, State: "Closed"}
+			// Connection failed - need to determine if Closed or Filtered
+			// Use the same error analysis approach as UDP scanner
+
+			// Check for timeout error (indicates firewall dropping packets)
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				// Timeout - packets are being silently dropped by firewall
+				result = ScanResult{Host: job.Host, Port: job.Port, State: "Filtered"}
+			} else if isConnectionRefused(err) {
+				// Connection actively refused (RST) - port is definitively closed
+				result = ScanResult{Host: job.Host, Port: job.Port, State: "Closed"}
+			} else {
+				// Other network errors - treat as filtered (unreachable, no route, etc.)
+				result = ScanResult{Host: job.Host, Port: job.Port, State: "Filtered"}
+			}
 		} else {
-			service := probeService(conn, job.Host, job.Port, cache)
-			result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: service}
+			// TCP handshake succeeded - close initial connection
 			_ = conn.Close()
+
+			// Perform probe-based service identification
+			serviceName, rawBanner := probeService(job.Host, job.Port, cache)
+
+			// Multi-level state detection:
+			if serviceName != "" || rawBanner != "" {
+				// Service responded - port is truly open with active service
+				serviceDescription := serviceName
+				if serviceDescription == "" {
+					serviceDescription = rawBanner
+				}
+				result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: serviceDescription}
+			} else {
+				// TCP handshake succeeded but no service response
+				// This indicates a reverse proxy/firewall accepting connections
+				// but with no backend service running on this port
+				result = ScanResult{Host: job.Host, Port: job.Port, State: "Filtered"}
+			}
 		}
+
 		results <- result
+		wg.Done()
 	}
 }
 
-// grabBanner retrieves service banner based on port protocol.
-// Implements protocol-specific communication strategies:
-// - HTTP ports: send GET request and read response
-// - SSH/FTP/SMTP: read auto-generated banner
-// - Others: return empty string
-func grabBanner(conn net.Conn, host string, port int) string {
-	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-
-	var banner string
-
-	switch port {
-	case 80, 443, 8080, 8443, 3000, 5000:
-		banner = fetchHTTPBanner(conn, host)
-	case 21, 22, 25, 110, 143:
-		banner = readAutoBanner(conn)
-	default:
-		return ""
+// isConnectionRefused checks if the error is a connection refused error.
+// Connection refused (RST packet) indicates the port is definitively closed.
+func isConnectionRefused(err error) bool {
+	// Check for syscall.ECONNREFUSED on Unix-like systems
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
 	}
 
-	return cleanBanner(banner)
-}
-
-// fetchHTTPBanner sends HTTP GET request and reads the response.
-func fetchHTTPBanner(conn net.Conn, host string) string {
-	request := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\n\r\n", host)
-	_, err := conn.Write([]byte(request))
-
-	if err != nil {
-		return ""
-	}
-
-	buffer := make([]byte, 512)
-	n, err := conn.Read(buffer)
-	if err != nil {
-		return ""
-	}
-
-	return string(buffer[:n])
-}
-
-// readAutoBanner reads banner sent by service upon connection.
-// Used for SSH, FTP, SMTP, POP3, IMAP protocols.
-func readAutoBanner(conn net.Conn) string {
-	buffer := make([]byte, 512)
-	n, err := conn.Read(buffer)
-	if err != nil {
-		return ""
-	}
-
-	return string(buffer[:n])
-}
-
-// cleanBanner normalizes banner format by replacing line endings.
-func cleanBanner(banner string) string {
-	cleaned := strings.ReplaceAll(banner, "\r\n", "\n")
-	cleaned = strings.ReplaceAll(cleaned, "\r", "\n")
-	return cleaned
+	// Check for Windows WSAECONNREFUSED error
+	// On Windows, connection refused might appear as a different error
+	errStr := err.Error()
+	return strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "actively refused")
 }

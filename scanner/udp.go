@@ -5,62 +5,72 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
-// UDPWorker processes scan jobs using UDP Scan.
-// Sends UDP packets and detects responses or ICMP errors.
-func UDPWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache) {
+// UDPWorker processes scan jobs using UDP scan method.
+// Sends UDP probe packets and analyzes responses or ICMP error messages
+// to determine port state. UDP scanning is inherently less reliable than
+// TCP scanning due to the connectionless nature of the protocol.
+// Note: cache parameter is unused in current implementation.
+// Future enhancement: UDP probes from nmap-service-probes could be utilized.
+func UDPWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache, wg *sync.WaitGroup) {
+	_ = cache // Unused: UDP service detection not yet implemented
 	for job := range jobs {
 		state := performUdpScan(job.Host, job.Port)
 		result := ScanResult{Host: job.Host, Port: job.Port, State: state}
 		results <- result
+		wg.Done()
 	}
 }
 
-// performUdpScan attempts UDP scan on a single host:port combination.
-// Sends UDP packet and listens for service response or ICMP errors.
-// Returns "Open" (service responded), "Closed" (ICMP unreachable), or "Open|Filtered" (timeout).
+// performUdpScan executes a UDP scan on a single target port.
+// Sends a UDP probe packet and analyzes the response to determine port state.
+// Returns:
+// - "Open": Service responded with data
+// - "Closed": ICMP port unreachable received
+// - "Open|Filtered": No response (timeout) - port may be open or filtered by firewall
 func performUdpScan(host string, port int) string {
 	address := host + ":" + strconv.Itoa(port)
 
-	// 1. Dial UDP connection with timeout.
+	// Establish UDP connection with timeout
 	conn, err := net.DialTimeout("udp", address, 2*time.Second)
 	if err != nil {
-		// Check if it's a timeout error using errors.As (handles wrapped errors).
+		// Check for timeout error (handles wrapped errors properly)
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
 			return "Open|Filtered"
 		}
-		// Any other error (like connection refused) indicates closed port.
+		// Other errors (e.g., ICMP port unreachable) indicate closed port
 		return "Closed"
 	}
 	defer conn.Close()
 
-	// 2. Set read deadline for receiving responses.
+	// Set read deadline for response collection
 	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 
-	// 3. Send probe packet.
+	// Send UDP probe packet (single null byte)
 	_, err = conn.Write([]byte{0})
 	if err != nil {
 		return "Open|Filtered"
 	}
 
-	// 4. Listen for service response or ICMP errors.
+	// Listen for service response or ICMP error messages
 	buffer := make([]byte, 512)
 	n, err := conn.Read(buffer)
 
 	if err != nil {
-		// Check if it's a timeout error using errors.As (handles wrapped errors).
+		// Check for timeout error (handles wrapped errors properly)
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
 			return "Open|Filtered"
 		}
-		// Any other error (like connection refused from ICMP) means port is closed.
+		// Other errors (e.g., ICMP port unreachable) indicate closed port
 		return "Closed"
 	}
 
-	// 5. If we received data, port is open and responding.
+	// If we received response data, the port is definitively open
 	if n > 0 {
 		return "Open"
 	}
@@ -68,13 +78,13 @@ func performUdpScan(host string, port int) string {
 	return "Open|Filtered"
 }
 
-// InitUdpScan initializes resources needed for UDP scanning.
-// Validates that pcap library is available and privileges are sufficient.
-// Returns error if UDP scan prerequisites are not met.
+// InitUdpScan validates that the system meets prerequisites for UDP scanning.
+// Unlike SYN scanning, UDP scanning through net.Dial doesn't require elevated
+// privileges in most cases. Performs basic network capability check.
+// Returns error if basic networking is unavailable.
 func InitUdpScan() error {
-	// For UDP scanning, we primarily rely on net.Dial which works without root
-	// in most cases. However, we still want to ensure system is capable.
-	// A simple check: try to resolve localhost
+	// Verify basic network resolution capability
+	// UDP scanning uses standard sockets, no special privileges needed
 	_, err := net.LookupIP("localhost")
 	if err != nil {
 		return fmt.Errorf("UDP scan requires network resolution capability: %v", err)

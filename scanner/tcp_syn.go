@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -11,22 +12,28 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// TCPSynWorker processes scan jobs using SYN Scan (stealth mode).
-// Sends SYN packet and detects response without completing handshake.
-// Requires root/administrator privileges on Unix-like systems.
-func TCPSynWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache) {
+// TCPSynWorker processes scan jobs using TCP SYN scan (half-open/stealth scan).
+// Sends SYN packet and analyzes the response (SYN-ACK or RST) without completing
+// the three-way handshake, making it harder to detect than TCP Connect scan.
+// Requires elevated privileges (root/administrator) for raw socket access.
+// Note: cache parameter is unused as SYN scan operates at packet level and cannot
+// perform application-layer service detection.
+func TCPSynWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCache, wg *sync.WaitGroup) {
+	_ = cache // Unused: SYN scanning operates at network layer only
 	for job := range jobs {
 		state := performSynScan(job.Host, job.Port)
 		result := ScanResult{Host: job.Host, Port: job.Port, State: state}
 		results <- result
+		wg.Done()
 	}
 }
 
-// performSynScan attempts SYN scan on a single host:port combination.
-// Uses raw socket to send SYN packet and listen for SYN-ACK response.
-// Returns "Open" or "Closed" based on TCP response received.
+// performSynScan executes a TCP SYN scan on a single target port.
+// Constructs and sends a raw TCP SYN packet, then analyzes the response
+// to determine port state. Returns "Open" (SYN-ACK received), "Closed" (RST received),
+// or "Closed" (timeout/error occurred).
 func performSynScan(host string, port int) string {
-	// 1. Find all network interfaces.
+	// Find all available network interfaces
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "Closed"
@@ -35,7 +42,8 @@ func performSynScan(host string, port int) string {
 	var srcIP net.IP
 	var device *net.Interface
 
-	// 2. Find suitable source IP address (not loopback, not down).
+	// Select a suitable network interface and source IP address
+	// Criteria: interface must be up, not loopback, and have an IPv4 address
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
@@ -62,7 +70,7 @@ func performSynScan(host string, port int) string {
 		return "Closed"
 	}
 
-	// 3. Resolve target IP address.
+	// Resolve target hostname to IP address
 	dstIPs, err := net.LookupIP(host)
 	if err != nil {
 		return "Closed"
@@ -73,21 +81,21 @@ func performSynScan(host string, port int) string {
 		return "Closed"
 	}
 
-	// 4. Open pcap handle for packet capture/transmission.
+	// Open packet capture handle for raw packet transmission and reception
 	handle, err := pcap.OpenLive(device.Name, 65535, false, 2*time.Second)
 	if err != nil {
 		return "Closed"
 	}
 	defer handle.Close()
 
-	// 5. Set BPF filter to capture only relevant responses.
+	// Configure Berkeley Packet Filter to capture only TCP responses from target
 	filter := fmt.Sprintf("tcp and src host %s and src port %d and dst host %s", dstIP.String(), port, srcIP.String())
 	if err := handle.SetBPFFilter(filter); err != nil {
 		return "Closed"
 	}
 
-	// 6. Create TCP SYN packet layers.
-	srcPort := uint16(rand.Intn(65535-1024) + 1024)
+	// Construct TCP SYN packet with randomized source port
+	srcPort := uint16(rand.Intn(65535-1024) + 1024) // Use ephemeral port range
 	dstPort := uint16(port)
 
 	ipLayer := &layers.IPv4{
@@ -104,10 +112,10 @@ func performSynScan(host string, port int) string {
 		Seq:     rand.Uint32(),
 	}
 
-	// 7. Calculate TCP checksum with IP layer context.
+	// Set network layer for proper TCP checksum calculation
 	_ = tcpLayer.SetNetworkLayerForChecksum(ipLayer)
 
-	// 8. Serialize packet into buffer.
+	// Serialize packet layers into transmittable byte buffer
 	buffer := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{
 		FixLengths:       true,
@@ -118,12 +126,12 @@ func performSynScan(host string, port int) string {
 		return "Closed"
 	}
 
-	// 9. Send SYN packet.
+	// Transmit the SYN packet to the target
 	if err := handle.WritePacketData(buffer.Bytes()); err != nil {
 		return "Closed"
 	}
 
-	// 10. Listen for response (SYN-ACK or RST).
+	// Listen for TCP response with timeout
 	timeout := time.After(2 * time.Second)
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
@@ -134,13 +142,13 @@ func performSynScan(host string, port int) string {
 				return "Closed"
 			}
 
-			// Check TCP layer for SYN-ACK or RST flags.
+			// Extract TCP layer and analyze flags
 			if tcpPacket, ok := packet.Layer(layers.LayerTypeTCP).(*layers.TCP); ok {
 				if tcpPacket.SYN && tcpPacket.ACK {
-					return "Open"
+					return "Open" // SYN-ACK indicates open port
 				}
 				if tcpPacket.RST {
-					return "Closed"
+					return "Closed" // RST indicates closed port
 				}
 			}
 
@@ -150,11 +158,11 @@ func performSynScan(host string, port int) string {
 	}
 }
 
-// InitSynScan initializes resources needed for SYN scanning.
-// Validates that pcap library is available and privileges are sufficient.
-// Returns error if SYN scan prerequisites are not met.
+// InitSynScan validates that the system meets prerequisites for SYN scanning.
+// Checks for libpcap availability and verifies elevated privileges by attempting
+// to enumerate network devices. Returns error if requirements are not satisfied.
 func InitSynScan() error {
-	// Attempt to list network devices (requires elevated privileges).
+	// Enumerate network devices (requires elevated privileges)
 	devices, err := pcap.FindAllDevs()
 	if err != nil {
 		return fmt.Errorf("SYN scan requires root/administrator privileges and libpcap: %v", err)
