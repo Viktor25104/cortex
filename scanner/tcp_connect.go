@@ -11,29 +11,37 @@ import (
 )
 
 // probeService performs intelligent service detection using probe-based fingerprinting.
-// For each probe, it establishes a fresh connection to ensure clean state and accurate results.
-// This "one probe - one connection" approach mirrors nmap's methodology and prevents
-// issues with buffered data or connection state corruption.
-// Returns service name and raw response banner.
-func probeService(host string, port int, cache *ProbeCache) (string, string) {
+// Reuses the already established connection to avoid connection failures and ensure consistency.
+// Returns service name, raw response banner, and connection validity flag.
+// If connectionValid is false, the connection was reset and port should be considered closed.
+func probeService(conn net.Conn, cache *ProbeCache) (string, string, bool) {
 	// Retrieve all TCP probes from cache
 	tcpProbes := cache.GetTCPProbes()
-	address := host + ":" + strconv.Itoa(port)
 
-	// Try each probe with a fresh connection
-	for _, probe := range tcpProbes {
-		// Establish new connection for this probe
-		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
-		if err != nil {
-			continue // Skip to next probe if connection fails
+	// First, check if connection is still alive by trying to read with very short timeout
+	// This detects immediate RST from reverse proxies with no backend
+	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	testBuffer := make([]byte, 1)
+	_, err := conn.Read(testBuffer)
+
+	// If we get a non-timeout error immediately, connection was reset
+	if err != nil {
+		var netErr net.Error
+		if !errors.As(err, &netErr) || !netErr.Timeout() {
+			// Non-timeout error means connection reset or closed
+			return "", "", false
 		}
+		// Timeout is fine - just means no immediate data
+	}
 
+	// Try each probe on the existing connection
+	for _, probe := range tcpProbes {
 		// Send probe payload if available
 		if len(probe.Data) > 0 {
 			_, err := conn.Write(probe.Data)
 			if err != nil {
-				_ = conn.Close()
-				continue // Skip to next probe on send failure
+				// Write failed - connection is dead
+				return "", "", false
 			}
 		}
 
@@ -43,10 +51,19 @@ func probeService(host string, port int, cache *ProbeCache) (string, string) {
 		// Collect server response
 		buffer := make([]byte, 4096)
 		n, err := conn.Read(buffer)
-		_ = conn.Close() // Always close connection after probe
 
-		if err != nil || n == 0 {
-			continue // Skip to next probe on read failure or empty response
+		if err != nil {
+			// Check if it's a connection reset (not just timeout)
+			var netErr net.Error
+			if !errors.As(err, &netErr) || !netErr.Timeout() {
+				// Connection was reset during probing
+				return "", "", false
+			}
+			continue // Timeout - try next probe
+		}
+
+		if n == 0 {
+			continue // Empty response - try next probe
 		}
 
 		response := buffer[:n]
@@ -55,13 +72,16 @@ func probeService(host string, port int, cache *ProbeCache) (string, string) {
 		for _, match := range probe.Matches {
 			if match.Pattern.Match(response) {
 				// Service identified successfully
-				return match.ServiceName, string(response)
+				return match.ServiceName, string(response), true
 			}
 		}
+
+		// Got a response but no match - return raw banner
+		return "", string(response), true
 	}
 
-	// No service identified
-	return "", ""
+	// No service identified but connection is still valid
+	return "", "", true
 }
 
 // TCPConnectWorker processes scan jobs using TCP Connect scan method.
@@ -97,25 +117,21 @@ func TCPConnectWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *Pro
 				result = ScanResult{Host: job.Host, Port: job.Port, State: "Filtered"}
 			}
 		} else {
-			// TCP handshake succeeded - close initial connection
-			_ = conn.Close()
+			// TCP handshake succeeded - perform probe-based service identification
+			serviceName, rawBanner, connValid := probeService(conn, cache)
+			_ = conn.Close() // Close connection after probing
 
-			// Perform probe-based service identification
-			serviceName, rawBanner := probeService(job.Host, job.Port, cache)
-
-			// Multi-level state detection:
-			if serviceName != "" || rawBanner != "" {
-				// Service responded - port is truly open with active service
+			// If connection was reset during probing, treat as closed
+			// This handles reverse proxies that accept TCP but immediately RST
+			if !connValid {
+				result = ScanResult{Host: job.Host, Port: job.Port, State: "Closed"}
+			} else {
+				// Connection remained valid - port is OPEN
 				serviceDescription := serviceName
-				if serviceDescription == "" {
+				if serviceDescription == "" && rawBanner != "" {
 					serviceDescription = rawBanner
 				}
 				result = ScanResult{Host: job.Host, Port: job.Port, State: "Open", Service: serviceDescription}
-			} else {
-				// TCP handshake succeeded but no service response
-				// This indicates a reverse proxy/firewall accepting connections
-				// but with no backend service running on this port
-				result = ScanResult{Host: job.Host, Port: job.Port, State: "Filtered"}
 			}
 		}
 

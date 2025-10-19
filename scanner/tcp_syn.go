@@ -30,13 +30,15 @@ func TCPSynWorker(jobs <-chan ScanJob, results chan<- ScanResult, cache *ProbeCa
 
 // performSynScan executes a TCP SYN scan on a single target port.
 // Constructs and sends a raw TCP SYN packet, then analyzes the response
-// to determine port state. Returns "Open" (SYN-ACK received), "Closed" (RST received),
-// or "Closed" (timeout/error occurred).
+// to determine port state. Returns:
+// - "Open": SYN-ACK received (port accepting connections)
+// - "Closed": RST received (port actively refusing connections)
+// - "Filtered": Timeout or local errors (cannot determine state)
 func performSynScan(host string, port int) string {
 	// Find all available network interfaces
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return "Closed"
+		return "Filtered" // Local error - cannot determine port state
 	}
 
 	var srcIP net.IP
@@ -67,31 +69,31 @@ func performSynScan(host string, port int) string {
 	}
 
 	if srcIP == nil || device == nil {
-		return "Closed"
+		return "Filtered" // Local error - no suitable interface found
 	}
 
 	// Resolve target hostname to IP address
 	dstIPs, err := net.LookupIP(host)
 	if err != nil {
-		return "Closed"
+		return "Filtered" // DNS resolution failed - cannot determine port state
 	}
 
 	dstIP := dstIPs[0].To4()
 	if dstIP == nil {
-		return "Closed"
+		return "Filtered" // IPv6 or invalid IP - not supported
 	}
 
 	// Open packet capture handle for raw packet transmission and reception
 	handle, err := pcap.OpenLive(device.Name, 65535, false, 2*time.Second)
 	if err != nil {
-		return "Closed"
+		return "Filtered" // Local error - cannot open pcap handle
 	}
 	defer handle.Close()
 
 	// Configure Berkeley Packet Filter to capture only TCP responses from target
 	filter := fmt.Sprintf("tcp and src host %s and src port %d and dst host %s", dstIP.String(), port, srcIP.String())
 	if err := handle.SetBPFFilter(filter); err != nil {
-		return "Closed"
+		return "Filtered" // Local error - cannot set BPF filter
 	}
 
 	// Construct TCP SYN packet with randomized source port
@@ -123,12 +125,12 @@ func performSynScan(host string, port int) string {
 	}
 
 	if err := gopacket.SerializeLayers(buffer, opts, ipLayer, tcpLayer); err != nil {
-		return "Closed"
+		return "Filtered" // Local error - cannot serialize packet
 	}
 
 	// Transmit the SYN packet to the target
 	if err := handle.WritePacketData(buffer.Bytes()); err != nil {
-		return "Closed"
+		return "Filtered" // Local error - cannot send packet
 	}
 
 	// Listen for TCP response with timeout
@@ -139,7 +141,7 @@ func performSynScan(host string, port int) string {
 		select {
 		case packet := <-packetSource.Packets():
 			if packet == nil {
-				return "Closed"
+				return "Filtered" // No packet received - ambiguous state
 			}
 
 			// Extract TCP layer and analyze flags
@@ -153,7 +155,7 @@ func performSynScan(host string, port int) string {
 			}
 
 		case <-timeout:
-			return "Closed"
+			return "Filtered" // Timeout - packets likely dropped by firewall
 		}
 	}
 }
