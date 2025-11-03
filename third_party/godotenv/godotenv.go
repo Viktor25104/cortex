@@ -61,9 +61,13 @@ func loadFile(name string) error {
 			continue
 		}
 
-		if strings.HasPrefix(value, "~") {
+		if value == "~" {
 			if home, err := os.UserHomeDir(); err == nil {
-				value = filepath.Join(home, strings.TrimPrefix(value, "~"))
+				value = home
+			}
+		} else if strings.HasPrefix(value, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				value = filepath.Join(home, value[2:])
 			}
 		}
 
