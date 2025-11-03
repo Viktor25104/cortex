@@ -21,7 +21,7 @@ type ScanTask struct {
 
 // CreateScanRequest is the payload for creating new scan tasks.
 type CreateScanRequest struct {
-	Hosts []string `json:"hosts" binding:"required,min=1"`
-	Ports string   `json:"ports" binding:"required"`
-	Mode  string   `json:"mode" binding:"required,oneof=connect syn udp"`
+	Hosts []string `json:"hosts" binding:"required,min=1" example:"scanme.nmap.org,127.0.0.1"`
+	Ports string   `json:"ports" binding:"required" example:"22-80"`
+	Mode  string   `json:"mode" binding:"required,oneof=connect syn udp" example:"connect"`
 }

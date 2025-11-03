@@ -1,11 +1,12 @@
 package cli
 
 import (
+	"cortex/logging"
 	"cortex/scanner"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -14,6 +15,7 @@ import (
 // It parses command-line flags and arguments, validates them,
 // and orchestrates the scanning process.
 func Run() {
+	logging.Configure()
 	jsonOutput := flag.Bool("json", false, "Output results in JSON format")
 	synScan := flag.Bool("sS", false, "Use SYN scan (requires root/admin)")
 	flag.BoolVar(synScan, "syn-scan", false, "Use SYN scan (requires root/admin)")
@@ -25,7 +27,8 @@ func Run() {
 	var probeCache *scanner.ProbeCache
 	probes, stats, err := scanner.LoadProbes("nmap-service-probes")
 	if err != nil {
-		log.Fatalf("Critical error loading probes file: %v", err)
+		logging.Logger().Error("critical error loading probes file", "error", err)
+		os.Exit(1)
 	}
 
 	// Display parsing errors if any occurred during probe file parsing
@@ -64,13 +67,15 @@ func Run() {
 
 	if *synScan {
 		if err := scanner.InitSynScan(); err != nil {
-			log.Fatalf("SYN scan initialization failed: %v\nTry running with sudo.", err)
+			logging.Logger().Error("syn scan initialization failed", "error", err)
+			os.Exit(1)
 		}
 		workerFunc = scanner.TCPSynWorker
 		workerCount = 50
 	} else if *udpScan {
 		if err := scanner.InitUdpScan(); err != nil {
-			log.Fatalf("UDP scan initialization failed: %v\nTry running with sudo.", err)
+			logging.Logger().Error("udp scan initialization failed", "error", err)
+			os.Exit(1)
 		}
 		workerFunc = scanner.UDPWorker
 		workerCount = 50
