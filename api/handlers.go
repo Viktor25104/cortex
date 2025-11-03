@@ -19,12 +19,25 @@ func NewServer(store TaskStore) *Server {
 	return &Server{store: store}
 }
 
-// RegisterRoutes attaches handlers to the provided Gin engine.
-func (s *Server) RegisterRoutes(router *gin.Engine) {
-	router.POST("/scans", s.createScanHandler)
-	router.GET("/scans/:id", s.getScanHandler)
+// RegisterRoutes attaches handlers to the provided Gin router group.
+func (s *Server) RegisterRoutes(routes gin.IRoutes) {
+	routes.POST("/scans", s.createScanHandler)
+	routes.GET("/scans/:id", s.getScanHandler)
 }
 
+// @Summary      Create a new scan task
+// @Description  Accepts a scan request, queues it for processing, and returns a task ID.
+// @Tags         Scans
+// @Accept       json
+// @Produce      json
+// @Param        scanRequest  body      CreateScanRequest  true  "Scan Request Parameters"
+// @Success      202          {object}  gin.H              "Scan task accepted"
+// @Failure      400          {object}  gin.H              "Invalid request payload"
+// @Failure      401          {object}  gin.H              "Unauthorized"
+// @Failure      429          {object}  gin.H              "Rate limit exceeded"
+// @Failure      500          {object}  gin.H              "Internal server error"
+// @Security     ApiKeyAuth
+// @Router       /scans [post]
 func (s *Server) createScanHandler(c *gin.Context) {
 	var req CreateScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -69,6 +82,18 @@ func (s *Server) createScanHandler(c *gin.Context) {
 	})
 }
 
+// @Summary      Get scan status and results
+// @Description  Retrieves the complete details of a scan task by its ID.
+// @Tags         Scans
+// @Produce      json
+// @Param        id   path      string     true  "Scan Task ID (UUID)"
+// @Success      200  {object}  ScanTask   "Full scan task object with results"
+// @Failure      404  {object}  gin.H      "Task not found"
+// @Failure      401  {object}  gin.H      "Unauthorized"
+// @Failure      429  {object}  gin.H      "Rate limit exceeded"
+// @Failure      500  {object}  gin.H      "Internal server error"
+// @Security     ApiKeyAuth
+// @Router       /scans/{id} [get]
 func (s *Server) getScanHandler(c *gin.Context) {
 	id := c.Param("id")
 	task, err := s.store.GetTask(id)

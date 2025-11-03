@@ -1,17 +1,19 @@
 package main
 
 import (
-	"log"
 	"os"
 
 	"cortex/api"
 	"cortex/cli"
+	"cortex/logging"
 )
 
 func main() {
+	logging.Configure()
 	if isServerMode(os.Args[1:]) {
 		if err := api.Run(); err != nil {
-			log.Fatalf("failed to start API server: %v", err)
+			logging.Logger().Error("failed to start API server", "error", err)
+			os.Exit(1)
 		}
 		return
 	}
