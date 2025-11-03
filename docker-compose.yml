@@ -1,13 +1,14 @@
-version: "3.9"
-
 services:
   cortex-redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - 6379
     volumes:
       - cortex-redis-data:/data
     networks:
       - cortex-net
+
   cortex-api:
     build: .
     depends_on:
