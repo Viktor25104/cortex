@@ -1,14 +1,15 @@
 # syntax=docker/dockerfile:1
 
 FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache libpcap-dev build-base
 WORKDIR /src
 COPY go.mod go.sum ./
-COPY third_party ./third_party
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o cortex ./main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o cortex ./main.go
 
 FROM alpine:latest
+RUN apk add --no-cache libpcap
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /opt/cortex
 COPY --from=builder /src/cortex ./cortex
