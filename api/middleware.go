@@ -76,7 +76,7 @@ func AuthMiddleware(expectedKey string, logger *slog.Logger) gin.HandlerFunc {
 }
 
 func unauthorized(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 }
 
 // RateLimitMiddleware enforces a per-IP rate limit backed by Redis.
@@ -93,13 +93,13 @@ func RateLimitMiddleware(client *redis.Client, limit int64, window time.Duration
 		pipe.Expire(ctx, key, window)
 		if _, err := pipe.Exec(ctx); err != nil {
 			logger.Error("rate limiter redis error", "error", err)
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 			return
 		}
 
 		if counter.Val() > limit {
 			logger.Warn("rate limit exceeded", "client_ip", c.ClientIP(), "count", counter.Val())
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, ErrorResponse{Error: "rate limit exceeded"})
 			return
 		}
 

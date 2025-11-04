@@ -20,7 +20,12 @@ import (
 
 // @title           Cortex API
 // @version         5.0
-// @description     REST API for the Cortex Network Scanner.
+// @description     Cortex exposes an asynchronous network reconnaissance pipeline that decouples request admission from long-running probe execution. Clients describe a scan once, receive a UUID acknowledging queue placement, and then poll for progress until workers deposit structured results.
+// @description     The workflow follows three simple steps:
+// @description     1. Submit POST /scans with hosts, ports, and the probing mode best suited for the job.
+// @description     2. Store the returned identifier and periodically call GET /scans/{id} to observe lifecycle transitions from pending ➜ running ➜ completed (or failed).
+// @description     3. When the task reaches completed the response includes normalized port findings; failed states surface a diagnostic error message.
+// @description     Every request—except for the interactive Swagger UI under /docs—must present the configured API key using the Authorization: Bearer <token> header. Missing or invalid credentials are rejected before any work begins.
 // @termsOfService  http://swagger.io/terms/
 // @contact.name   API Support
 // @contact.url    http://www.swagger.io/support
@@ -32,6 +37,9 @@ import (
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name Authorization
+// @description    Supply the configured API key using the Authorization: Bearer <token> header.
+// @tag.name Scans
+// @tag.description Cortex orchestrates distributed port scans. Submit new jobs, inspect intermediate task state, and retrieve final findings from this tag.
 // Run initializes dependencies and starts the API server.
 func Run() error {
 	logging.Configure()

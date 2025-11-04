@@ -12,10 +12,10 @@ type ScanJob struct {
 
 // ScanResult represents the outcome of a port scan attempt.
 type ScanResult struct {
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	State   string `json:"state"`
-	Service string `json:"service,omitempty"`
+        Host    string `json:"host" example:"scanme.nmap.org" description:"Target host that produced the observation. Mirrors the input host field so clients can join results back to their original request."`
+        Port    int    `json:"port" example:"443" description:"Network port that was probed. Expressed as an integer in the 0-65535 range."`
+        State   string `json:"state" enums:"Open,Closed,Filtered" example:"Open" description:"Resulting port disposition derived from worker probes. Open indicates a responsive service, Closed means the port rejected connections, and Filtered signifies intermediary packet filtering."`
+        Service string `json:"service,omitempty" example:"http (nginx)" description:"Optional service fingerprint (if detected) describing application protocol and banner. Empty when the probe could not identify an application."`
 }
 
 // WorkerFunc is the signature for scanner worker functions.

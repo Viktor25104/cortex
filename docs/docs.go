@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 const docTemplate = `{
   "swagger": "2.0",
   "info": {
-    "description": "REST API for the Cortex Network Scanner.",
+    "description": "Cortex exposes an asynchronous network reconnaissance pipeline that decouples request admission from long-running probe execution. Clients describe a scan once, receive a UUID acknowledging queue placement, and then poll for progress until workers deposit structured results.\nThe workflow follows three simple steps:\n1. Submit POST /scans with hosts, ports, and the probing mode best suited for the job.\n2. Store the returned identifier and periodically call GET /scans/{id} to observe lifecycle transitions from pending → running → completed (or failed).\n3. When the task reaches completed the response includes normalized port findings; failed states surface a diagnostic error message.\nEvery request—except for the interactive Swagger UI under /docs—must present the configured API key using the Authorization: Bearer <token> header. Missing or invalid credentials are rejected before any work begins.",
     "title": "Cortex API",
     "termsOfService": "http://swagger.io/terms/",
     "contact": {
@@ -34,7 +34,7 @@ const docTemplate = `{
           "application/json"
         ],
         "summary": "Create a new scan task",
-        "description": "Accepts a scan request, queues it for processing, and returns a task ID.",
+        "description": "Submit a scan definition and let Cortex execute it asynchronously. The handler validates input, persists the task, and enqueues it for background workers before returning a UUID.\n\n**Lifecycle**: POST /scans immediately answers with HTTP 202 Accepted plus the task identifier. Clients must poll GET /scans/{id} to observe status transitions (pending → running → completed/failed). Actual port findings are attached only after completion.\n\n**Common pitfalls**: malformed JSON, unsupported modes, or exceeding rate limits will return structured error responses containing a human-readable explanation.",
         "operationId": "createScan",
         "tags": [
           "Scans"
@@ -46,7 +46,7 @@ const docTemplate = `{
         ],
         "parameters": [
           {
-            "description": "Scan Request Parameters",
+            "description": "Scan request parameters",
             "name": "scanRequest",
             "in": "body",
             "required": true,
@@ -57,33 +57,59 @@ const docTemplate = `{
         ],
         "responses": {
           "202": {
-            "description": "Scan task accepted",
+            "description": "Scan accepted. Poll GET /scans/{id} to track progress.",
             "schema": {
-              "$ref": "#/definitions/AcceptedResponse"
+              "$ref": "#/definitions/ScanAcceptedResponse"
+            },
+            "examples": {
+              "application/json": {
+                "id": "a3f5c62e-1234-4f72-a84a-1c2d3e4f5678",
+                "status": "pending"
+              }
             }
           },
           "400": {
-            "description": "Invalid request payload",
+            "description": "Malformed JSON body or failed validation.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "invalid request payload: validation failed on 'mode'"
+              }
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Missing or incorrect API key.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "unauthorized"
+              }
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded for the calling client.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "rate limit exceeded"
+              }
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Internal error while persisting or queueing the task.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "failed to queue task"
+              }
             }
           }
         }
@@ -95,7 +121,7 @@ const docTemplate = `{
           "application/json"
         ],
         "summary": "Get scan status and results",
-        "description": "Retrieves the complete details of a scan task by its ID.",
+        "description": "Retrieve a live snapshot of a scan task. Supply the UUID obtained from POST /scans and poll this endpoint until the lifecycle reaches completed.\n\n**Polling guidance**: responses with status pending or running will include metadata but results remains empty. Once the task is completed, results contains every observed port state and optional service fingerprints. If the task fails, the error field clarifies the reason.\n\n**Error handling**: invalid UUIDs, missing authorization, rate limiting, or unknown tasks all return structured ErrorResponse payloads so clients can adjust behavior programmatically.",
         "operationId": "getScan",
         "tags": [
           "Scans"
@@ -108,7 +134,7 @@ const docTemplate = `{
         "parameters": [
           {
             "type": "string",
-            "description": "Scan Task ID (UUID)",
+            "description": "Scan Task ID (UUID v4)",
             "name": "id",
             "in": "path",
             "required": true
@@ -116,33 +142,78 @@ const docTemplate = `{
         ],
         "responses": {
           "200": {
-            "description": "Full scan task object with results",
+            "description": "Current task snapshot including results when completed.",
             "schema": {
               "$ref": "#/definitions/ScanTask"
+            },
+            "examples": {
+              "application/json": {
+                "id": "a3f5c62e-1234-4f72-a84a-1c2d3e4f5678",
+                "status": "completed",
+                "results": [
+                  {
+                    "host": "scanme.nmap.org",
+                    "port": 443,
+                    "state": "Open",
+                    "service": "https"
+                  }
+                ]
+              }
             }
           },
-          "404": {
-            "description": "Task not found",
+          "400": {
+            "description": "Malformed task identifier.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "invalid task id format"
+              }
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Missing or incorrect API key.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "unauthorized"
+              }
+            }
+          },
+          "404": {
+            "description": "Task with the provided ID does not exist.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "task not found"
+              }
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded for the calling client.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "rate limit exceeded"
+              }
             }
           },
           "500": {
-            "description": "Internal server error",
+            "description": "Internal error when loading the task.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "error": "failed to load task"
+              }
             }
           }
         }
@@ -153,24 +224,11 @@ const docTemplate = `{
     "ApiKeyAuth": {
       "type": "apiKey",
       "name": "Authorization",
-      "in": "header"
+      "in": "header",
+      "description": "Supply the configured API key using the Authorization: Bearer <token> header."
     }
   },
   "definitions": {
-    "AcceptedResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "example": "a3f5c62e-1234-4f72-a84a-1c2d3e4f5678"
-        },
-        "status": {
-          "type": "string",
-          "example": "pending"
-        }
-      },
-      "additionalProperties": false
-    },
     "CreateScanRequest": {
       "type": "object",
       "required": [
@@ -181,16 +239,18 @@ const docTemplate = `{
       "properties": {
         "hosts": {
           "type": "array",
+          "description": "Targets to scan. Accepts IPv4/IPv6 addresses and domain names that resolve via DNS. Provide at least one entry; multiple hosts are processed concurrently.",
           "items": {
             "type": "string"
           },
           "example": [
             "scanme.nmap.org",
-            "127.0.0.1"
+            "203.0.113.50"
           ]
         },
         "mode": {
           "type": "string",
+          "description": "Scanning strategy. connect performs TCP connect() handshakes suitable for banner grabbing, syn uses half-open SYN probes for fast TCP discovery, udp sends UDP payloads to uncover datagram services.",
           "enum": [
             "connect",
             "syn",
@@ -200,7 +260,8 @@ const docTemplate = `{
         },
         "ports": {
           "type": "string",
-          "example": "22-80"
+          "description": "Combination of single ports and inclusive ranges (e.g. 80,443,1000-1050). Leave no spaces for best readability; ranges must use a hyphen.",
+          "example": "443,8443,10000-10100"
         }
       },
       "additionalProperties": false
@@ -210,7 +271,28 @@ const docTemplate = `{
       "properties": {
         "error": {
           "type": "string",
-          "example": "failed to queue task"
+          "description": "Human readable error message describing why the request was rejected. The value is localized for operators rather than end users.",
+          "example": "task not found"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScanAcceptedResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier clients must supply to GET /scans/{id} when polling for status.",
+          "example": "a3f5c62e-1234-4f72-a84a-1c2d3e4f5678",
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string",
+          "description": "Initial queue state assigned to every newly accepted scan request.",
+          "enum": [
+            "pending"
+          ],
+          "example": "pending"
         }
       },
       "additionalProperties": false
@@ -220,21 +302,30 @@ const docTemplate = `{
       "properties": {
         "host": {
           "type": "string",
+          "description": "Target host that produced the observation. Mirrors the input host field so clients can join results back to their original request.",
           "example": "scanme.nmap.org"
         },
         "port": {
           "type": "integer",
           "format": "int32",
-          "example": 80
+          "description": "Network port that was probed. Expressed as an integer in the 0-65535 range.",
+          "example": 443
         },
         "service": {
           "type": "string",
-          "example": "http",
+          "description": "Optional service fingerprint (if detected) describing application protocol and banner. Empty when the probe could not identify an application.",
+          "example": "http (nginx)",
           "x-nullable": true
         },
         "state": {
           "type": "string",
-          "example": "open"
+          "description": "Resulting port disposition derived from worker probes. Open indicates a responsive service, Closed means the port rejected connections, and Filtered signifies intermediary packet filtering.",
+          "enum": [
+            "Open",
+            "Closed",
+            "Filtered"
+          ],
+          "example": "Open"
         }
       },
       "additionalProperties": false
@@ -244,49 +335,89 @@ const docTemplate = `{
       "properties": {
         "completed_at": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Timestamp (UTC, RFC3339 format) indicating when the task finished processing. Empty while the task is pending or running.",
+          "example": "2024-01-02T15:06:30Z"
         },
         "created_at": {
           "type": "string",
           "format": "date-time",
+          "description": "Timestamp (UTC, RFC3339 format) when the API accepted the scan request.",
           "example": "2024-01-02T15:04:05Z"
         },
         "error": {
           "type": "string",
-          "example": "failed to queue task"
+          "description": "Diagnostic message describing why the task entered the failed status. Present only when status equals failed.",
+          "example": "failed to resolve target host"
         },
         "hosts": {
           "type": "array",
+          "description": "List of destination targets. Supports IPv4/IPv6 literals and resolvable domain names. The order is preserved so results can be mapped back to the original submission.",
           "items": {
             "type": "string"
-          }
+          },
+          "example": [
+            "scanme.nmap.org",
+            "192.0.2.10"
+          ]
         },
         "id": {
           "type": "string",
-          "example": "a3f5c62e-1234-4f72-a84a-1c2d3e4f5678"
+          "description": "Immutable UUIDv4 identifier assigned when the task is accepted. Persist this value and reuse it for subsequent polling requests.",
+          "example": "a3f5c62e-1234-4f72-a84a-1c2d3e4f5678",
+          "format": "uuid"
         },
         "mode": {
           "type": "string",
-          "example": "connect"
+          "description": "Scanner transport mode. Use connect for TCP connect() handshakes, syn for half-open SYN scanning against TCP endpoints, or udp for stateless UDP datagram probes.",
+          "enum": [
+            "connect",
+            "syn",
+            "udp"
+          ],
+          "example": "syn"
         },
         "ports": {
           "type": "string",
-          "example": "22-80"
+          "description": "Port expression combining single ports and inclusive ranges using commas (for example 22,80,443,1000-1100). Whitespace is ignored and duplicate ports are automatically de-duplicated by the scheduler.",
+          "example": "22,80,443,1000-1100"
         },
         "results": {
           "type": "array",
+          "description": "Collection of port states collected during scanning. Present only after the task reaches the completed status. The array is sorted by host then port for easy rendering.",
           "items": {
             "$ref": "#/definitions/ScanResult"
-          }
+          },
+          "example": [
+            {
+              "host": "scanme.nmap.org",
+              "port": 443,
+              "state": "Open",
+              "service": "https"
+            }
+          ]
         },
         "status": {
           "type": "string",
+          "description": "Current processing state. pending indicates the request is queued, running signals active probing, completed denotes success with results attached, and failed highlights an unrecoverable worker-side issue.",
+          "enum": [
+            "pending",
+            "running",
+            "completed",
+            "failed"
+          ],
           "example": "pending"
         }
       },
       "additionalProperties": false
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "Scans",
+      "description": "Cortex orchestrates distributed port scans. Submit new jobs, inspect intermediate task state, and retrieve final findings from this tag."
+    }
+  ]
 }
 `
 
