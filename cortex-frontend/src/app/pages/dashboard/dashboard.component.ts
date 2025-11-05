@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AsyncPipe, NgFor, NgIf } from '@angular/common';
 import { ScanService, ScanTask, ScanMode } from '../../core/services/scan.service';
+import { CardComponent } from '../../shared/card/card.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [FormsModule, NgIf, NgFor, AsyncPipe],
+  imports: [FormsModule, NgIf, NgFor, AsyncPipe, CardComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })

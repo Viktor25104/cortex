@@ -3,11 +3,13 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AsyncPipe, NgFor } from '@angular/common';
 import { ScanService, ScanMode } from '../../../core/services/scan.service';
+import { CardComponent } from '../../../shared/card/card.component';
+import { ModeSelectComponent } from '../../../shared/mode-select/mode-select.component';
 
 @Component({
   selector: 'app-scan-manager',
   standalone: true,
-  imports: [FormsModule, NgFor, AsyncPipe, RouterLink],
+  imports: [FormsModule, NgFor, AsyncPipe, RouterLink, CardComponent, ModeSelectComponent],
   templateUrl: './scan-manager.component.html',
   styleUrl: './scan-manager.component.scss'
 })

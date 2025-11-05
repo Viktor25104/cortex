@@ -1,5 +1,12 @@
-﻿<h2>API Settings</h2>
-<label>API Key</label>
-<input type="password" [(ngModel)]="key" placeholder="Enter API key" />
-<button (click)="save()">Save</button>
-<span *ngIf="saved" class="badge completed">Saved</span>
+﻿<div class="grid-2">
+  <app-card title="API Key Management" subtitle="Your key authenticates all Cortex API requests.">
+    <label>API Key</label>
+    <input type="password" [(ngModel)]="key" placeholder="Enter API key" />
+    <button (click)="save()">Save</button>
+    <span *ngIf="saved" class="badge completed" style="margin-left:.5rem;">Saved</span>
+  </app-card>
+
+  <app-card title="Preferences" subtitle="Customize your Cortex experience.">
+    <div style="opacity:.8">Future home of Light/Dark mode toggle.</div>
+  </app-card>
+</div>

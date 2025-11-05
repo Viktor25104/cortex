@@ -1,7 +1,5 @@
-﻿<h2>Dashboard</h2>
-<section class="widgets">
-  <div class="card">
-    <h3>Quick Scan</h3>
+﻿<div class="grid-2-1">
+  <app-card title="Quick Scan" subtitle="Trigger a one-off scan and jump to live results.">
     <form (ngSubmit)="quickScan()">
       <label>Hosts</label>
       <input [(ngModel)]="hosts" name="hosts" placeholder="host1 host2" />
@@ -15,25 +13,25 @@
       </div>
       <button type="submit">Start</button>
     </form>
-  </div>
+  </app-card>
 
-  <div class="card">
-    <h3>Active Scans</h3>
-    <ng-container *ngFor="let t of (tasks$ | async) || []; let i = index">
-      <div class="row" *ngIf="t.status === 'running'">
-        <span class="badge running">{{t.status}}</span>
-        <code>{{t.hosts.join(', ')}}</code>
-      </div>
-    </ng-container>
-  </div>
+  <div class="stack">
+    <app-card title="Active Scans" subtitle="Tasks currently running on the cluster.">
+      <ng-container *ngFor="let t of (tasks$ | async) || []; let i = index">
+        <div class="row" *ngIf="t.status === 'running'">
+          <span class="badge running">{{t.status}}</span>
+          <code>{{t.hosts.join(', ')}}</code>
+        </div>
+      </ng-container>
+    </app-card>
 
-  <div class="card">
-    <h3>Recent Activity</h3>
-    <ng-container *ngFor="let t of (tasks$ | async) || []; let i = index">
-      <div class="row" *ngIf="i < 5">
-        <span class="badge" [class.completed]="t.status==='completed'" [class.failed]="t.status==='failed'">{{t.status}}</span>
-        <code>{{t.hosts.join(', ')}}</code>
-      </div>
-    </ng-container>
+    <app-card title="Recent Activity" subtitle="Most recent completed or failed tasks.">
+      <ng-container *ngFor="let t of (tasks$ | async) || []; let i = index">
+        <div class="row" *ngIf="i < 5">
+          <span class="badge" [class.completed]="t.status==='completed'" [class.failed]="t.status==='failed'">{{t.status}}</span>
+          <code>{{t.hosts.join(', ')}}</code>
+        </div>
+      </ng-container>
+    </app-card>
   </div>
-</section>
+</div>

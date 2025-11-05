@@ -1,11 +1,12 @@
 ﻿import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
+import { CardComponent } from '../../shared/card/card.component';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule, NgIf],
+  imports: [FormsModule, NgIf, CardComponent],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss'
 })

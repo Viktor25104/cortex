@@ -36,3 +36,13 @@ a.active, a:hover { color: var(--accent-primary); }
 .badge.running { background: rgba(0,174,255,0.15); color: var(--accent-primary); }
 .badge.failed, .badge.closed { background: rgba(255,77,77,0.15); color: var(--accent-negative); }
 .badge.filtered { background: rgba(255,159,67,0.15); color: var(--accent-warning); }
+
+/* Heading system */
+.page-title { margin: 0; font-size: 1.4rem; letter-spacing: .04em; }
+.page-subtitle { margin: .25rem 0 1rem; font-size: .9rem; color: rgba(204,214,246,.75); }
+
+/* Grid utilities for pages */
+.grid-2-1 { display:grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
+.grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-1 { display:grid; grid-template-columns: 1fr; gap: 1rem; }
+@media (max-width: 1100px) { .grid-2-1, .grid-2 { grid-template-columns: 1fr; } }
