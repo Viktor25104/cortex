@@ -38,7 +38,7 @@ export class ScanService {
   constructor(private http: HttpClient) {}
 
   createScan(req: CreateScanRequest): Observable<ScanAcceptedResponse> {
-    return this.http.post<ScanAcceptedResponse>(`${environment.apiBaseUrl}/api/v1/scans`, req).pipe(
+    return this.http.post<ScanAcceptedResponse>(`${environment.apiBaseUrl}/scans`, req).pipe(
       tap((resp) => {
         const newTask: ScanTask = { id: resp.id, status: resp.status, hosts: req.hosts, ports: req.ports, mode: req.mode };
         this.upsertTask(newTask);
@@ -47,7 +47,7 @@ export class ScanService {
   }
 
   getScan(id: string): Observable<ScanTask> {
-    return this.http.get<ScanTask>(`${environment.apiBaseUrl}/api/v1/scans/${id}`).pipe(
+    return this.http.get<ScanTask>(`${environment.apiBaseUrl}/scans/${id}`).pipe(
       tap((task) => this.upsertTask(task))
     );
   }
@@ -80,3 +80,4 @@ export class ScanService {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks.slice(0, 200))); } catch {}
   }
 }
+

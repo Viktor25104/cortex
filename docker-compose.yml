@@ -1,4 +1,4 @@
-services:
+﻿services:
   cortex-redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -18,6 +18,18 @@ services:
     environment:
       CORTEX_API_KEY: ${CORTEX_API_KEY:-}
       REDIS_ADDR: ${REDIS_ADDR:-cortex-redis:6379}
+    networks:
+      - cortex-net
+    restart: unless-stopped
+
+  cortex-frontend:
+    build:
+      context: ./cortex-frontend
+    container_name: cortex-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - cortex-api
     networks:
       - cortex-net
     restart: unless-stopped
