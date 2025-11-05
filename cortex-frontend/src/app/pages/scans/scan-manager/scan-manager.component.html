@@ -1,0 +1,34 @@
+﻿<h2>New Scan Task</h2>
+<div class="card">
+  <form (ngSubmit)="launch()">
+    <label>Hosts</label>
+    <textarea [(ngModel)]="hosts" name="hosts" rows="4" placeholder="one per line or space-separated"></textarea>
+    <label>Ports</label>
+    <input [(ngModel)]="ports" name="ports" placeholder="22,80,443 or 20-25" />
+    <label>Mode</label>
+    <div class="modes">
+      <label><input type="radio" name="mode" [(ngModel)]="mode" value="connect" /> Connect</label>
+      <label><input type="radio" name="mode" [(ngModel)]="mode" value="syn" /> SYN</label>
+      <label><input type="radio" name="mode" [(ngModel)]="mode" value="udp" /> UDP</label>
+    </div>
+    <button type="submit">Launch Scan</button>
+  </form>
+</div>
+
+<h2>Scan History</h2>
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Status</th><th>Targets</th><th>Ports</th><th>Mode</th><th>Submitted</th></tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let t of (tasks$ | async)" [routerLink]="['/scans', t.id]">
+        <td><span class="badge" [class.completed]="t.status==='completed'" [class.running]="t.status==='running'" [class.failed]="t.status==='failed'">{{t.status}}</span></td>
+        <td><code>{{t.hosts.slice(0,3).join(', ')}}</code></td>
+        <td><code>{{t.ports}}</code></td>
+        <td>{{t.mode}}</td>
+        <td>{{t.created_at || ''}}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

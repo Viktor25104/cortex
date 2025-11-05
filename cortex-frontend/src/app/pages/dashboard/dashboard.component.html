@@ -1,0 +1,39 @@
+﻿<h2>Dashboard</h2>
+<section class="widgets">
+  <div class="card">
+    <h3>Quick Scan</h3>
+    <form (ngSubmit)="quickScan()">
+      <label>Hosts</label>
+      <input [(ngModel)]="hosts" name="hosts" placeholder="host1 host2" />
+      <label>Ports</label>
+      <input [(ngModel)]="ports" name="ports" placeholder="22,80,443 or 20-25" />
+      <label>Mode</label>
+      <div class="modes">
+        <label><input type="radio" name="mode" [(ngModel)]="mode" value="connect" /> Connect</label>
+        <label><input type="radio" name="mode" [(ngModel)]="mode" value="syn" /> SYN</label>
+        <label><input type="radio" name="mode" [(ngModel)]="mode" value="udp" /> UDP</label>
+      </div>
+      <button type="submit">Start</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Active Scans</h3>
+    <ng-container *ngFor="let t of (tasks$ | async) || []; let i = index">
+      <div class="row" *ngIf="t.status === 'running'">
+        <span class="badge running">{{t.status}}</span>
+        <code>{{t.hosts.join(', ')}}</code>
+      </div>
+    </ng-container>
+  </div>
+
+  <div class="card">
+    <h3>Recent Activity</h3>
+    <ng-container *ngFor="let t of (tasks$ | async) || []; let i = index">
+      <div class="row" *ngIf="i < 5">
+        <span class="badge" [class.completed]="t.status==='completed'" [class.failed]="t.status==='failed'">{{t.status}}</span>
+        <code>{{t.hosts.join(', ')}}</code>
+      </div>
+    </ng-container>
+  </div>
+</section>
