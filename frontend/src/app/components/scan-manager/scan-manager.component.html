@@ -1,0 +1,134 @@
+<div class="scan-manager">
+  <header class="page-header">
+    <div>
+      <h1>Scan Manager</h1>
+      <p class="subtitle">Create new tasks or review historical scan data</p>
+    </div>
+  </header>
+
+  <div class="manager-grid">
+    <div class="card new-scan-card">
+      <div class="card-header">
+        <h2>New Scan Task</h2>
+        <p class="card-subtitle">Configure and launch a reconnaissance operation</p>
+      </div>
+      <div class="card-body">
+        <form (ngSubmit)="onSubmit()">
+          <div class="form-group">
+            <label for="targets">Target Hosts</label>
+            <textarea id="targets" [(ngModel)]="scanForm.targets" name="targets" placeholder="192.168.1.0/24, 10.0.0.1, scanme.nmap.org" class="input textarea" rows="3"></textarea>
+            <span class="help-text">Comma-separated IPs, hostnames, or CIDR ranges</span>
+          </div>
+
+          <div class="form-group">
+            <label for="ports">Port Specification</label>
+            <input type="text" id="ports" [(ngModel)]="scanForm.ports" name="ports" placeholder="1-1000, 8080, 8443" class="input" />
+            <span class="help-text">Ranges (1-1000) or comma-separated list</span>
+          </div>
+
+          <div class="form-group">
+            <label>Scan Mode</label>
+            <div class="mode-selector">
+              <div *ngFor="let option of modeOptions" class="mode-card" [class.selected]="scanForm.mode === option.mode" (click)="selectMode(option.mode)">
+                <div class="mode-icon">{{ option.icon }}</div>
+                <div class="mode-content"><h3>{{ option.title }}</h3><p>{{ option.description }}</p></div>
+                <div class="mode-check" *ngIf="scanForm.mode === option.mode">✓</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="timeout">Timeout (seconds)</label>
+              <input type="number" id="timeout" [(ngModel)]="scanForm.timeout" name="timeout" min="1" max="30" class="input" />
+            </div>
+            <div class="form-group">
+              <label for="concurrent">Max Concurrent Targets</label>
+              <input type="number" id="concurrent" [(ngModel)]="scanForm.max_concurrent_targets" name="concurrent" min="1" max="100" class="input" />
+            </div>
+          </div>
+
+          <div class="error-message" *ngIf="error">{{ error }}</div>
+          <button type="submit" class="btn btn-primary" [disabled]="loading"><span *ngIf="!loading">🚀 Launch Reconnaissance</span><span *ngIf="loading">⏳ Initializing Scan...</span></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card presets-card">
+      <div class="card-header">
+        <h2>Port Presets & Utilities</h2>
+        <p class="card-subtitle">Speed up configuration with common presets</p>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Quick Port Presets</label>
+          <div class="filter-bar">
+            <button type="button" class="filter-btn" (click)="applyPreset('top100')" [class.active]="false">Top 100</button>
+            <button type="button" class="filter-btn" (click)="applyPreset('1-1000')">Top 1000</button>
+            <button type="button" class="filter-btn" (click)="applyPreset('80,443,8080,8443')">Web</button>
+            <button type="button" class="filter-btn" (click)="applyPreset('1-65535')">All TCP</button>
+          </div>
+        </div>
+
+        <div class="form-group" *ngIf="recentTargets.length">
+          <label>Recent Targets</label>
+          <div class="filter-bar">
+            <button type="button" class="filter-btn" *ngFor="let t of recentTargets" (click)="addTarget(t)">{{ t }}</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Target Count</label>
+            <div class="input">{{ targetCount }}</div>
+          </div>
+          <div class="form-group">
+            <label>Estimated Ports</label>
+            <div class="input">{{ estimatedPortCount }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card history-card">
+      <div class="card-header">
+        <h2>Scan History</h2>
+        <p class="card-subtitle">All reconnaissance tasks and their status</p>
+      </div>
+      <div class="card-body">
+        <div class="filter-bar">
+          <button class="filter-btn" [class.active]="statusFilter === 'all'" (click)="statusFilter = 'all'; applyFilter()">All</button>
+          <button class="filter-btn" [class.active]="statusFilter === 'pending'" (click)="statusFilter = 'pending'; applyFilter()">Pending</button>
+          <button class="filter-btn" [class.active]="statusFilter === 'running'" (click)="statusFilter = 'running'; applyFilter()">Running</button>
+          <button class="filter-btn" [class.active]="statusFilter === 'completed'" (click)="statusFilter = 'completed'; applyFilter()">Completed</button>
+          <button class="filter-btn" [class.active]="statusFilter === 'failed'" (click)="statusFilter = 'failed'; applyFilter()">Failed</button>
+        </div>
+
+        <div class="scan-table-container" *ngIf="filteredScans.length > 0; else emptyHistory">
+          <table class="scan-table">
+            <thead><tr><th>Scan ID</th><th>Targets</th><th>Mode</th><th>Status</th><th>Progress</th><th>Created</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let scan of filteredScans" (click)="viewScan(scan.id)" class="scan-row">
+                <td class="scan-id">{{ scan.id.substring(0, 12) }}...</td>
+                <td>{{ scan.targets.length }} host(s)</td>
+                <td><span class="mode-badge">{{ scan.mode }}</span></td>
+                <td><span [class]="getStatusClass(scan.status)">{{ scan.status }}</span></td>
+                <td>
+                  <div class="progress-cell" *ngIf="scan.scanned_hosts">
+                    <div class="progress-bar"><div class="progress-fill" [style.width.%]="scan.total_hosts ? (scan.scanned_hosts / scan.total_hosts) * 100 : 0"></div></div>
+                    <span class="progress-text">{{ scan.scanned_hosts }}/{{ scan.total_hosts }}</span>
+                  </div>
+                  <span *ngIf="!scan.scanned_hosts">-</span>
+                </td>
+                <td class="date-cell">{{ formatDate(scan.created_at) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-template #emptyHistory>
+          <div class="empty-state"><div class="empty-icon">📁</div><p>No scans found</p><span>Create your first reconnaissance task above</span></div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+</div>

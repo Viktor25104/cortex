@@ -1,0 +1,70 @@
+<div class="settings">
+  <header class="page-header">
+    <div>
+      <h1>Settings & Configuration</h1>
+      <p class="subtitle">Manage API credentials, integrations, and AI engine parameters</p>
+    </div>
+  </header>
+
+  <div class="settings-grid">
+    <div class="card api-card">
+      <div class="card-header"><h2>API Key Management</h2><p class="card-subtitle">Configure your Cortex API authentication</p></div>
+      <div class="card-body">
+        <div class="api-info"><div class="info-icon">🔐</div><p>Your API key is required to authenticate all scan requests. It is stored locally in your browser and never transmitted to third parties.</p></div>
+        <div class="form-group">
+          <label for="apiKey">API Key</label>
+          <div class="input-with-toggle">
+            <input [type]="showKey ? 'text' : 'password'" id="apiKey" [(ngModel)]="apiKey" name="apiKey" placeholder="Enter your Cortex API key" class="input" />
+            <button type="button" class="toggle-btn" (click)="toggleKeyVisibility()">{{ showKey ? '🙈' : '👁️' }}</button>
+          </div>
+          <span class="help-text">Obtain your API key from the Cortex backend configuration</span>
+        </div>
+
+        <div class="saved-key" *ngIf="savedKey">
+          <label>Current Key</label>
+          <div class="key-display"><code>{{ displayKey }}</code><button class="btn-icon" (click)="toggleKeyVisibility()">{{ showKey ? '🙈' : '👁️' }}</button></div>
+        </div>
+
+        <div class="success-message" *ngIf="saveMessage">{{ saveMessage }}</div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" (click)="saveApiKey()">💾 Save API Key</button>
+          <button class="btn btn-danger" (click)="clearApiKey()" *ngIf="savedKey">🗑️ Clear Key</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card integrations-card">
+      <div class="card-header"><div class="header-badge"><span class="badge-coming-soon">Coming in v7.0</span></div><h2>Integrations & Alerts</h2><p class="card-subtitle">Real-time notifications and external system connections</p></div>
+      <div class="card-body mockup">
+        <div class="integration-section"><div class="integration-header"><div class="integration-icon">💬</div><div><h3>Slack Notifications</h3><p>Send scan completion alerts to Slack channels</p></div></div><div class="form-group"><label for="slack">Slack Webhook URL</label><input type="text" id="slack" [(ngModel)]="mockSettings.slack_webhook" placeholder="https://hooks.slack.com/services/..." class="input" disabled /><span class="help-text">Configure incoming webhook in Slack settings</span></div></div>
+        <div class="integration-section"><div class="integration-header"><div class="integration-icon">📨</div><div><h3>Telegram Bot</h3><p>Receive instant updates via Telegram</p></div></div><div class="form-group"><label for="telegram">Bot Token</label><input type="text" id="telegram" [(ngModel)]="mockSettings.telegram_token" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" class="input" disabled /><span class="help-text">Create a bot via &#64;BotFather on Telegram</span></div></div>
+        <div class="integration-section"><div class="integration-header"><div class="integration-icon">✉️</div><div><h3>Email Alerts</h3><p>SMTP-based notification system</p></div></div><div class="form-row"><div class="form-group"><label>SMTP Server</label><input type="text" class="input" placeholder="smtp.example.com" disabled /></div><div class="form-group"><label>Port</label><input type="number" class="input" placeholder="587" disabled /></div></div></div>
+        <button class="btn btn-secondary" disabled>💾 Save Integration Settings</button>
+      </div>
+    </div>
+
+    <div class="card ai-card">
+      <div class="card-header"><div class="header-badge"><span class="badge-coming-soon">Coming in v8.0</span></div><h2>Cortex AI Engine</h2><p class="card-subtitle">Configure automated threat analysis and intelligence</p></div>
+      <div class="card-body mockup">
+        <div class="ai-overview"><div class="ai-icon">🧠</div><p>The Cortex AI Engine uses machine learning models to automatically analyze scan results, correlate with global threat intelligence, and provide actionable security recommendations.</p></div>
+        <div class="form-group"><label>Analysis Sensitivity</label><div class="slider-container"><input type="range" min="1" max="10" [(ngModel)]="mockSettings.ai_sensitivity" class="slider" disabled /><div class="slider-labels"><span>Low (1)</span><span class="current-value">{{ mockSettings.ai_sensitivity }}</span><span>High (10)</span></div></div><span class="help-text">Higher sensitivity increases detection of potential threats but may produce more false positives</span></div>
+        <div class="toggle-section">
+          <div class="toggle-item"><div class="toggle-content"><h4>Threat Intelligence Correlation</h4><p>Cross-reference results with global threat databases</p></div><label class="switch"><input type="checkbox" [(ngModel)]="mockSettings.threat_intel_enabled" disabled /><span class="switch-slider"></span></label></div>
+          <div class="toggle-item"><div class="toggle-content"><h4>Automated Vulnerability Scanning</h4><p>Automatically check for CVEs in discovered services</p></div><label class="switch"><input type="checkbox" [(ngModel)]="mockSettings.auto_scan_enabled" disabled /><span class="switch-slider"></span></label></div>
+        </div>
+        <div class="model-info"><h4>AI Model Information</h4><div class="model-grid"><div class="model-stat"><label>Model Version</label><span>Cortex-AI-v8.0-beta</span></div><div class="model-stat"><label>Training Data</label><span>2.4M scans</span></div><div class="model-stat"><label>Accuracy</label><span>94.7%</span></div><div class="model-stat"><label>Last Updated</label><span>2025-10-15</span></div></div></div>
+        <button class="btn btn-secondary" disabled>💾 Save AI Configuration</button>
+      </div>
+    </div>
+
+    <div class="card system-card">
+      <div class="card-header"><h2>System Information</h2><p class="card-subtitle">Platform version and diagnostics</p></div>
+      <div class="card-body">
+        <div class="system-grid"><div class="system-item"><label>Frontend Version</label><span class="value">v8.0.0-alpha</span></div><div class="system-item"><label>Backend API</label><span class="value">v5.2.1</span></div><div class="system-item"><label>Build Date</label><span class="value">2025-11-06</span></div><div class="system-item"><label>Environment</label><span class="value">Development</span></div></div>
+        <div class="system-status"><div class="status-item online"><div class="status-dot"></div><span>API Connection: Online</span></div><div class="status-item online"><div class="status-dot"></div><span>Database: Connected</span></div><div class="status-item offline"><div class="status-dot"></div><span>AI Engine: Offline (Coming v8.0)</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+

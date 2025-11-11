@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortex-frontend
+  namespace: cortex
+  labels:
+    app: cortex-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cortex-frontend
+  template:
+    metadata:
+      labels:
+        app: cortex-frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 101
+      containers:
+        - name: nginx
+          image: ghcr.io/your-org/cortex-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 101
+            runAsGroup: 101
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
