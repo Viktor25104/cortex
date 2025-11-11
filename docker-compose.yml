@@ -10,7 +10,9 @@
       - cortex-net
 
   cortex-api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     depends_on:
       - cortex-redis
     ports:
@@ -24,7 +26,8 @@
 
   cortex-frontend:
     build:
-      context: ./cortex-frontend
+      context: .
+      dockerfile: Dockerfile.frontend
     container_name: cortex-frontend
     ports:
       - "80:80"
