@@ -1,0 +1,120 @@
+<div class="scan-result">
+  <header class="page-header">
+    <button class="back-btn" (click)="backToManager()">⬅️ Back to Manager</button>
+    <div>
+      <h1>Scan Results</h1>
+      <p class="subtitle">Detailed reconnaissance output and analysis</p>
+    </div>
+  </header>
+
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading scan data...</p>
+  </div>
+
+  <div class="error-state" *ngIf="error && !loading">
+    <div class="error-icon">⚠️</div>
+    <p>{{ error }}</p>
+    <button class="btn btn-secondary" (click)="backToManager()">Return to Manager</button>
+  </div>
+
+  <div class="result-grid" *ngIf="scan && !loading">
+    <div class="left-column">
+      <div class="card summary-card">
+        <div class="card-header">
+          <h2>Scan Summary</h2>
+          <p class="card-subtitle">Task metadata and execution details</p>
+        </div>
+        <div class="card-body">
+          <div class="summary-grid">
+            <div class="summary-item"><label>Scan ID</label><span class="value monospace">{{ scan.id }}</span></div>
+            <div class="summary-item"><label>Status</label><span [class]="getStatusClass(scan.status)" class="status-badge">{{ scan.status }}</span></div>
+            <div class="summary-item"><label>Mode</label><span class="value">{{ scan.mode }}</span></div>
+            <div class="summary-item"><label>Targets</label><span class="value">{{ scan.targets.join(', ') }}</span></div>
+            <div class="summary-item"><label>Port Range</label><span class="value">{{ scan.ports }}</span></div>
+            <div class="summary-item"><label>Created</label><span class="value">{{ formatDate(scan.created_at) }}</span></div>
+            <div class="summary-item"><label>Started</label><span class="value">{{ formatDate(scan.started_at) }}</span></div>
+            <div class="summary-item"><label>Duration</label><span class="value">{{ getDuration() }}</span></div>
+          </div>
+
+          <div class="progress-section" *ngIf="scan.status === 'running'">
+            <label>Progress</label>
+            <div class="progress-bar-large"><div class="progress-fill" [style.width.%]="getProgressPercent()"></div></div>
+            <div class="progress-stats"><span>{{ scan.scanned_hosts }} / {{ scan.total_hosts }} hosts</span><span>{{ getProgressPercent().toFixed(1) }}%</span></div>
+          </div>
+
+          <div class="stats-grid" *ngIf="scan.status === 'completed'">
+            <div class="stat-card"><div class="stat-value">{{ scan.total_hosts }}</div><div class="stat-label">Total Hosts</div></div>
+            <div class="stat-card"><div class="stat-value accent">{{ scan.open_ports || 0 }}</div><div class="stat-label">Open Ports</div></div>
+            <div class="stat-card"><div class="stat-value">{{ (scan.results && scan.results.length) || 0 }}</div><div class="stat-label">Results</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card results-card">
+        <div class="card-header"><h2>Scan Results</h2><p class="card-subtitle">Discovered services and banner information</p></div>
+        <div class="card-body">
+          <div class="results-table-container" *ngIf="scan.results && scan.results.length > 0; else noResults">
+            <table class="results-table">
+              <thead><tr><th>Host</th><th>Port</th><th>State</th><th>Service</th><th>Banner / Version</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let result of scan.results">
+                  <td class="host-cell">{{ result.host }}</td>
+                  <td class="port-cell">{{ result.port }}</td>
+                  <td><span class="state-badge" [class.open]="(result.state || '').toLowerCase() === 'open'">{{ result.state }}</span></td>
+                  <td class="service-cell">{{ result.service || '-' }}</td>
+                  <td class="banner-cell"><span class="banner-text">{{ result.banner || result.version || '-' }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noResults>
+            <div class="empty-state">
+              <div class="empty-icon">📭</div>
+              <p *ngIf="scan.status === 'running'">Scan in progress...</p>
+              <p *ngIf="scan.status === 'completed'">No open ports discovered</p>
+              <p *ngIf="scan.status === 'pending'">Scan queued for execution</p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-column">
+      <div class="card ai-analysis-card">
+        <div class="card-header">
+          <div class="header-badge"><span class="badge-coming-soon">Coming in v8.0</span></div>
+          <h2>Cortex AI Analysis</h2>
+          <p class="card-subtitle">Automated threat intelligence and vulnerability assessment</p>
+        </div>
+        <div class="card-body ai-mockup">
+          <div class="ai-section">
+            <h3>Risk Assessment</h3>
+            <div class="risk-meter"><div class="risk-bar"><div class="risk-fill medium" style="width: 65%"></div></div><div class="risk-labels"><span class="risk-level">MEDIUM</span><span class="risk-score">6.5 / 10</span></div></div>
+            <p class="risk-explanation">Based on discovered services and known vulnerability databases.</p>
+          </div>
+          <div class="ai-section">
+            <h3>Key Findings</h3>
+            <div class="findings-list">
+              <div class="finding-item"><div class="finding-icon warning">⚠️</div><div class="finding-content"><strong>Outdated SSH Version</strong><p>OpenSSH 7.4 detected on port 22. CVE-2018-15473 applicable.</p></div></div>
+              <div class="finding-item"><div class="finding-icon info">ℹ️</div><div class="finding-content"><strong>Standard Web Services</strong><p>HTTP/HTTPS on standard ports. TLS 1.2+ confirmed.</p></div></div>
+              <div class="finding-item"><div class="finding-icon success">✅</div><div class="finding-content"><strong>No Critical Exposures</strong><p>No high-risk services (RDP, SMB) exposed to internet.</p></div></div>
+            </div>
+          </div>
+          <div class="ai-section">
+            <h3>Service Fingerprints</h3>
+            <div class="service-chart">
+              <div class="chart-bar" style="width: 100%"><span class="chart-label">HTTP/HTTPS</span><span class="chart-value">42%</span></div>
+              <div class="chart-bar" style="width: 60%"><span class="chart-label">SSH</span><span class="chart-value">25%</span></div>
+              <div class="chart-bar" style="width: 50%"><span class="chart-label">Database</span><span class="chart-value">21%</span></div>
+              <div class="chart-bar" style="width: 28%"><span class="chart-label">Other</span><span class="chart-value">12%</span></div>
+            </div>
+          </div>
+          <div class="ai-section"><h3>Recommended Actions</h3><ul class="recommendations"><li>Update SSH to latest stable version (9.x)</li><li>Review firewall rules for unnecessary exposures</li><li>Enable fail2ban or similar brute-force protection</li><li>Schedule regular vulnerability rescans</li></ul></div>
+          <div class="ai-disclaimer"><p>The Cortex AI Engine will leverage machine learning models to automatically analyze scan results, correlate with threat intelligence feeds, and provide actionable security recommendations.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

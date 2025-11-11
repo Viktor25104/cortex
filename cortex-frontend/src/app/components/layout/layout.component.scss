@@ -1,0 +1,50 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  background: var(--primary-bg);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 280px;
+  background: var(--secondary-bg);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(0, 174, 255, 0.2);
+  position: relative;
+  overflow-y: auto;
+}
+
+.logo-container {
+  padding: 2rem 1.5rem;
+  border-bottom: 1px solid rgba(0, 174, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo { flex-shrink: 0; }
+
+.logo-text h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); letter-spacing: 2px; }
+.logo-text p { margin: 0; font-size: 0.75rem; color: rgba(204, 214, 246, 0.6); text-transform: uppercase; letter-spacing: 1px; }
+
+.navigation { flex: 1; padding: 1.5rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.nav-item { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; color: var(--primary-text); text-decoration: none; transition: all 0.2s ease; border-left: 3px solid transparent; position: relative; }
+.nav-item:hover { background: rgba(0, 174, 255, 0.1); border-left-color: var(--accent-primary); }
+.nav-item.active { background: rgba(0, 174, 255, 0.15); border-left-color: var(--accent-primary); color: var(--accent-primary); font-weight: 600; }
+.nav-item.active::before { content: ''; position: absolute; right: 1rem; width: 6px; height: 6px; background: var(--accent-positive); border-radius: 50%; box-shadow: 0 0 10px var(--accent-positive); }
+.nav-icon { font-size: 1.25rem; width: 1.5rem; text-align: center; }
+.nav-label { font-size: 0.95rem; letter-spacing: 0.5px; }
+
+.sidebar-footer { padding: 1.5rem; border-top: 1px solid rgba(0, 174, 255, 0.2); }
+.status-indicator { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.status-indicator .pulse { width: 10px; height: 10px; background: var(--accent-positive); border-radius: 50%; animation: pulse 2s infinite; }
+.status-indicator span { font-size: 0.875rem; color: var(--accent-positive); font-weight: 500; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 127, 0.7); } 50% { box-shadow: 0 0 0 10px rgba(0, 255, 127, 0); } }
+.version { margin: 0; font-size: 0.75rem; color: rgba(204, 214, 246, 0.4); text-align: center; }
+
+.main-content { flex: 1; overflow-y: auto; background: var(--primary-bg); }
+
+@media (max-width: 1024px) { .sidebar { width: 240px; } }
+@media (max-width: 768px) { .sidebar { position: fixed; left: -280px; z-index: 100; transition: left 0.3s ease; } .sidebar.open { left: 0; } }
+

@@ -5,44 +5,59 @@
   --accent-primary: #00aeff;
   --accent-positive: #00ff7f;
   --accent-negative: #ff4d4d;
-  --accent-warning: #ff9f43;
+}
 
-  --font-ui: Inter, Roboto, "Segoe UI", Arial, sans-serif;
-  --font-mono: "Fira Code", "Roboto Mono", monospace;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  line-height: 1.6;
+  overflow-x: hidden;
 }
 
 html, body {
   height: 100%;
-}
-
-body {
   margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
   background: var(--primary-bg);
-  color: var(--primary-text);
-  font-family: var(--font-ui);
 }
 
-a { color: var(--primary-text); text-decoration: none; }
-a.active, a:hover { color: var(--accent-primary); }
-
-.badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1.6;
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 174, 255, 0.3);
+  border-radius: 5px;
 }
-.badge.completed, .badge.open { background: rgba(0,255,127,0.15); color: var(--accent-positive); }
-.badge.running { background: rgba(0,174,255,0.15); color: var(--accent-primary); }
-.badge.failed, .badge.closed { background: rgba(255,77,77,0.15); color: var(--accent-negative); }
-.badge.filtered { background: rgba(255,159,67,0.15); color: var(--accent-warning); }
 
-/* Heading system */
-.page-title { margin: 0; font-size: 1.4rem; letter-spacing: .04em; }
-.page-subtitle { margin: .25rem 0 1rem; font-size: .9rem; color: rgba(204,214,246,.75); }
-
-/* Grid utilities for pages */
-.grid-2-1 { display:grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
-.grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.grid-1 { display:grid; grid-template-columns: 1fr; gap: 1rem; }
-@media (max-width: 1100px) { .grid-2-1, .grid-2 { grid-template-columns: 1fr; } }
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 174, 255, 0.5);
+}

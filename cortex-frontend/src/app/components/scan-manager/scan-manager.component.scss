@@ -1,0 +1,57 @@
+/* Transplanted from Test_fr-main scan-manager.component.scss */
+.scan-manager { padding: 2rem; max-width: 1600px; margin: 0 auto; }
+.page-header { margin-bottom: 2rem; }
+.page-header h1 { margin: 0 0 0.5rem 0; font-size: 2rem; color: var(--primary-text); font-weight: 700; }
+.page-header .subtitle { margin: 0; font-size: 0.95rem; color: rgba(204, 214, 246, 0.6); text-transform: uppercase; letter-spacing: 1px; }
+.manager-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.card { background: var(--secondary-bg); border-radius: 8px; border: 1px solid rgba(0, 174, 255, 0.2); overflow: hidden; }
+.card-header { padding: 1.5rem; border-bottom: 1px solid rgba(0, 174, 255, 0.2); }
+.card-header h2 { margin: 0 0 0.5rem 0; font-size: 1.25rem; color: var(--accent-primary); font-weight: 600; }
+.card-header .card-subtitle { margin: 0; font-size: 0.875rem; color: rgba(204, 214, 246, 0.5); }
+.card-body { padding: 1.5rem; }
+.form-group { margin-bottom: 1.5rem; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--primary-text); font-weight: 500; }
+.form-group .input { width: 100%; padding: 0.75rem; background: var(--primary-bg); border: 1px solid rgba(0, 174, 255, 0.3); border-radius: 4px; color: var(--primary-text); font-size: 0.95rem; transition: all 0.2s ease; font-family: inherit; }
+.form-group .input:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(0, 174, 255, 0.1); }
+.form-group .input::placeholder { color: rgba(204, 214, 246, 0.3); }
+.form-group .textarea { resize: vertical; }
+.form-group .help-text { display: block; margin-top: 0.5rem; font-size: 0.75rem; color: rgba(204, 214, 246, 0.4); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.mode-selector { display: flex; flex-direction: column; gap: 0.75rem; }
+.mode-card { position: relative; display: flex; align-items: center; gap: 1rem; padding: 1rem; background: var(--primary-bg); border: 2px solid rgba(0, 174, 255, 0.2); border-radius: 6px; cursor: pointer; transition: all 0.2s ease; }
+.mode-card:hover { border-color: rgba(0, 174, 255, 0.5); background: rgba(0, 174, 255, 0.05); }
+.mode-card.selected { border-color: var(--accent-primary); background: rgba(0, 174, 255, 0.1); box-shadow: 0 0 0 3px rgba(0, 174, 255, 0.1); }
+.mode-icon { font-size: 2rem; flex-shrink: 0; }
+.mode-content h3 { margin: 0 0 0.25rem 0; font-size: 0.95rem; color: var(--accent-primary); font-weight: 600; letter-spacing: 0.5px; }
+.mode-content p { margin: 0; font-size: 0.85rem; line-height: 1.4; color: rgba(204, 214, 246, 0.6); }
+.mode-check { position: absolute; top: 0.75rem; right: 0.75rem; width: 24px; height: 24px; background: var(--accent-primary); color: var(--primary-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.875rem; font-weight: bold; }
+.error-message { margin-bottom: 1rem; padding: 0.75rem; background: rgba(255, 77, 77, 0.1); border: 1px solid var(--accent-negative); border-radius: 4px; color: var(--accent-negative); font-size: 0.875rem; }
+.btn { padding: 0.875rem 1.5rem; border: none; border-radius: 4px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-transform: uppercase; letter-spacing: 0.5px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { width: 100%; background: var(--accent-primary); color: var(--primary-bg); }
+.btn-primary:not(:disabled):hover { background: #0099dd; box-shadow: 0 4px 12px rgba(0, 174, 255, 0.3); transform: translateY(-2px); }
+.history-card { grid-column: 1 / -1; }
+.filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.filter-btn { padding: 0.5rem 1rem; background: var(--primary-bg); border: 1px solid rgba(0, 174, 255, 0.3); border-radius: 4px; color: var(--primary-text); font-size: 0.875rem; cursor: pointer; transition: all 0.2s ease; }
+.filter-btn:hover { border-color: var(--accent-primary); background: rgba(0, 174, 255, 0.1); }
+.filter-btn.active { background: var(--accent-primary); color: var(--primary-bg); border-color: var(--accent-primary); font-weight: 600; }
+.scan-table-container { overflow-x: auto; }
+.scan-table { width: 100%; border-collapse: collapse; }
+.scan-table thead { background: var(--primary-bg); border-bottom: 2px solid rgba(0, 174, 255, 0.3); }
+.scan-table thead th { padding: 1rem; text-align: left; font-size: 0.875rem; font-weight: 600; color: var(--accent-primary); text-transform: uppercase; letter-spacing: 0.5px; }
+.scan-table tbody tr { border-bottom: 1px solid rgba(0, 174, 255, 0.1); transition: all 0.2s ease; cursor: pointer; }
+.scan-table tbody tr:hover { background: rgba(0, 174, 255, 0.05); }
+.scan-table tbody td { padding: 1rem; font-size: 0.9rem; color: var(--primary-text); }
+.scan-id { font-family: monospace; color: var(--accent-primary); font-weight: 600; }
+.mode-badge { display: inline-block; padding: 0.25rem 0.75rem; background: rgba(0, 174, 255, 0.2); color: var(--accent-primary); border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+.status-pending { color: rgba(204, 214, 246, 0.6); }
+.status-running { color: var(--accent-primary); font-weight: 600; }
+.status-completed { color: var(--accent-positive); font-weight: 600; }
+.status-failed { color: var(--accent-negative); font-weight: 600; }
+.progress-cell { display: flex; align-items: center; gap: 0.75rem; }
+.progress-bar { flex: 1; height: 6px; background: rgba(0, 174, 255, 0.2); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent-primary); transition: width 0.3s ease; }
+.progress-text { font-family: monospace; font-size: 0.75rem; color: rgba(204, 214, 246, 0.6); min-width: 60px; }
+.date-cell { font-size: 0.85rem; color: rgba(204, 214, 246, 0.6); }
+@media (max-width: 1200px) { .manager-grid { grid-template-columns: 1fr; } .history-card { grid-column: 1; } }
+@media (max-width: 768px) { .scan-manager { padding: 1rem; } .page-header h1 { font-size: 1.5rem; } .form-row { grid-template-columns: 1fr; } .scan-table { font-size: 0.85rem; } .scan-table th, .scan-table td { padding: 0.75rem 0.5rem; } }
