@@ -14,4 +14,4 @@ Env
 Notes
 - Will be moved under `backend/` with a root `go.work` in the next refactor phase to avoid import rewrites.
 - Health endpoint expected at `/healthz` for probes (configure in API if missing).
-
+- The binary expects `./nmap-service-probes` in working directory (packaged into Docker image in `/app/nmap-service-probes`).

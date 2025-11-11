@@ -4,3 +4,25 @@ nmap-service-probes
 cortex.exe
 
 AGENTS.md
+*.log
+.DS_Store
+Thumbs.db
+
+# Go
+/cortex
+*.out
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+
+# Frontend build artifacts
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.angular/cache/
+/frontend/.npmrc
+/frontend/npm-debug.log
+/frontend/yarn-error.log
