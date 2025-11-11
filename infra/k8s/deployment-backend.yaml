@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortex-backend
+  namespace: cortex
+  labels:
+    app: cortex-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cortex-backend
+  template:
+    metadata:
+      labels:
+        app: cortex-backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: api
+          image: ghcr.io/your-org/cortex-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: CORTEX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cortex-backend-secrets
+                  key: CORTEX_API_KEY
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: cortex-config
+                  key: REDIS_ADDR
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
